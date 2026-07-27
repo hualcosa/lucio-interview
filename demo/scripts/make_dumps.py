@@ -123,10 +123,12 @@ def apply_churn(rows: list[dict[str, str]], rng: random.Random) -> tuple[list[di
             else:
                 row["price"] = str(round(price * rng.uniform(0.90, 1.05), 2))
                 stats["price_changed"] += 1
-        elif roll < WITHDRAWN_RATE + PRICE_CHANGE_RATE + STATUS_CHANGE_RATE:
-            if row.get("status") == "for_sale":
-                row["status"] = "sold"
-                stats["status_changed"] += 1
+        elif (
+            roll < WITHDRAWN_RATE + PRICE_CHANGE_RATE + STATUS_CHANGE_RATE
+            and row.get("status") == "for_sale"
+        ):
+            row["status"] = "sold"
+            stats["status_changed"] += 1
 
         out.append(row)
 

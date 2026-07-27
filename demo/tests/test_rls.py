@@ -40,9 +40,7 @@ def seed():
 
 def visible_ids(brokerage_id: int) -> set[int]:
     with app_conn(brokerage_id) as conn:
-        rows = conn.execute(
-            "SELECT listing_id FROM listings WHERE listing_id >= 990000"
-        ).fetchall()
+        rows = conn.execute("SELECT listing_id FROM listings WHERE listing_id >= 990000").fetchall()
     return {r[0] for r in rows}
 
 
@@ -77,13 +75,12 @@ def test_session_without_a_principal_sees_nothing():
 
 def test_cannot_write_an_action_for_another_brokerage():
     """WITH CHECK: a principal cannot insert rows attributed to someone else."""
-    with pytest.raises(psycopg.errors.InsufficientPrivilege):
-        with app_conn(BROKER_A) as conn:
-            conn.execute(
-                """INSERT INTO actions (listing_id, brokered_by, action_type, requested_by)
+    with pytest.raises(psycopg.errors.InsufficientPrivilege), app_conn(BROKER_A) as conn:
+        conn.execute(
+            """INSERT INTO actions (listing_id, brokered_by, action_type, requested_by)
                    VALUES (990003, %s, 'flag', 'test')""",
-                (BROKER_B,),
-            )
+            (BROKER_B,),
+        )
 
 
 def test_writes_land_awaiting_approval():
@@ -94,9 +91,7 @@ def test_writes_land_awaiting_approval():
                VALUES (990001, %s, 'flag', 'test')""",
             (BROKER_A,),
         )
-        status = conn.execute(
-            "SELECT status FROM actions WHERE listing_id = 990001"
-        ).fetchone()[0]
+        status = conn.execute("SELECT status FROM actions WHERE listing_id = 990001").fetchone()[0]
         conn.commit()
 
     assert status == "pending_approval"

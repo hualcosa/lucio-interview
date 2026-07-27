@@ -65,7 +65,7 @@ alternative in case I am wrong.
 addresses, statuses, dates. Facts in columns, not prose.
 
 This second assumption is the one that removes vector search from the design altogether, so
-it carries real weight. §3.3 explains the reasoning, and gives the precise condition under
+it carries real weight. Section 3.3 explains the reasoning, and gives the precise condition under
 which I would reverse the decision.
 
 **Assumption 3 — Realistic figures where the brief gives none:** ~1–2 KB per record (so a
@@ -79,8 +79,7 @@ for costing purposes.
 
 ## 2.1 Starting with what works
 
-A review that finds nothing good is usually a review that did not read carefully. The draft
-gets several things right, and I am keeping them:
+
 
 **Exporting nightly to S3 is correct.** It is the only interface the legacy system offers,
 and Amazon S3 is exactly the right place to land it: cheap, durable, and versioned. Keeping
@@ -111,22 +110,21 @@ to the rows you asked for, it holds state between requests. The draft never conv
 the other, so every query pays the full cost of the conversion, over and over.
 
 Once that boundary is missing, everything else follows: the slow scan, the exhausted memory,
-the recomputed embeddings, the runaway cost. They are not five bugs. They are one absent
-boundary and its consequences.
+the recomputed embeddings, the runaway cost.
 
 ## 2.3 The problems, in brief
 
-Each is examined in §3. I have graded them by confidence, because they are **not** equally
-severe, and saying so is part of an honest review — treating every item as equally damning is
-what you do when you are pattern-matching rather than thinking.
+I have graded them by severity, because they are **not** equally severe, and saying so is
+part of an honest review — treating every item as equally damning is what you do when you are
+pattern-matching rather than thinking.
 
-| # | Problem | Confidence |
+| # | Problem | Severity |
 |---|---|---|
 | 1 | The export file is being used as the database | **High** |
 | 2 | Vector search does not belong in this system at all | **High** — *and not on the original list* |
 | 3 | Embeddings are recomputed on every query | **High** — *a consequence of 1 and 2* |
 | 4 | No authentication layer | **High** |
-| 5 | The MCP server and business logic share one function | **Medium** — *a judgment call, not a defect* |
+| 5 | The MCP server and business logic share one function | **Medium** — *a bad practice* |
 | 6 | No write path, and no handling of stale data | **High** |
 | 7 | The residency rule is violated on the client side, invisibly | **High** — *not on the original list* |
 
@@ -352,7 +350,7 @@ Two things resolve it, and neither is a caching optimisation:
 1. **Embeddings are a property of the record, not of the question.** They are computed once,
    when a record changes, and stored beside it. Only the *user's question* is converted at
    query time — a single operation taking milliseconds and costing a fraction of a cent.
-2. **In this design, they are not computed at all**, because §3.3 removed them.
+2. **In this design, they are not computed at all**, because Section 3.3 removed them.
 
 So the honest answer to this item is: *the fix is not to cache the embeddings. It is to
 delete them.* And that reframes the cost figure — **the draft was not overspending on a
@@ -713,7 +711,7 @@ answerable within days. I would answer them first.
 AWS-managed and in-region, but outside the client's own network boundary? A private endpoint
 solves the network path; whether that satisfies the policy is a legal judgment. I want it in
 writing, because it determines which models are available. In the same conversation: the
-client-side boundary from §3.8, which they will not have considered.
+client-side boundary from Section 3.8, which they will not have considered.
 
 **Days 1–2 — get a real export file.** Not a specification of one: the actual file. Profile
 it. What is its true size, its real schema, does it contain descriptive text, and how much
@@ -773,7 +771,7 @@ to be a database.
 says it does not, because the data is a table of facts rather than a body of prose — and
 applying similarity search to exact facts trades away the precision the client is paying for.
 That is the boldest recommendation here and the one I would defend hardest, which is why
-§3.3 states the exact condition that would reverse it. The database choice keeps that reversal
+Section 3.3 states the exact condition that would reverse it. The database choice keeps that reversal
 free.
 
 Two further findings were not in the original list. The system as specified **cannot act on
@@ -792,6 +790,6 @@ it is what the draft, understandably, conflated.
 
 ---
 
-*Assumptions in §1.3 are the load-bearing inputs to everything above. If any of them is
+*Assumptions in Section 1.3 are the load-bearing inputs to everything above. If any of them is
 wrong, the affected recommendation is flagged in place with the condition that would change
 it. I would rather be corrected on an input than be right for the wrong reason.*
