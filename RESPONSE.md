@@ -2,19 +2,23 @@
 
 ## A natural-language agent over legacy real-estate data, exposed via MCP
 
-**Prepared for:** the engineering and compliance stakeholders
-**Subject:** review of the proposed architecture, and a revised design
-**Status:** recommendations, with assumptions stated for challenge
 
----
 
 ### How to read this document
 
-Section 1 sets the scene and states every assumption I made, so you can challenge my inputs
-rather than my conclusions. Section 2 summarises what the draft gets right and lists what it
-gets wrong. Section 3 takes each problem in turn — what the draft does, why it fails, and
-what I would put in its place. Section 4 assembles the pieces into one architecture with its
-costs and safeguards. Section 5 covers delivery. Section 6 concludes.
+Section 1 sets the scene and states every assumption I made, so you can challenge my inputs rather than my conclusions.
+
+Section 2 summarises what the draft gets right and lists what it
+gets wrong.
+
+Section 3 takes each problem in turn — what the draft does, why it fails, and what I would put in its place.
+
+Section 4 assembles the pieces into one architecture with its
+costs and safeguards. 
+
+Section 5 covers delivery. 
+
+Section 6 concludes.
 
 Technical terms are explained where they first appear. A non-technical reader should be able
 to follow the argument end to end without skipping.
@@ -34,8 +38,7 @@ brokerages use to publish and share listings; there are roughly 500–600 region
 run by realtor associations. These systems are frequently decades old. The standard way to
 get data out of one is a nightly file export. There is no live API to query.
 
-This is worth stating plainly because it means **the constraint is not a design failure — it
-is the industry's normal shape.** Zillow, Redfin and Realtor.com all consume MLS data this
+For example Zillow, Redfin and Realtor.com all consume MLS data this
 way. The architecture must accept nightly batch as a given and be excellent anyway.
 
 ## 1.2 The constraints, and what each one actually forces
@@ -43,9 +46,9 @@ way. The architecture must accept nightly batch as a given and be excellent anyw
 | The constraint | What it forces on the design |
 |---|---|
 | ~3 million records, growing ~5% per month | Compounding is faster than it reads: 3M → **5.4M in a year → 9.7M in two**, doubling roughly every 14 months. Anything that merely *fits* today is scheduled to fail. |
-| Raw records must never leave the client's AWS account or region | Rules out third-party hosted databases entirely. Constrains which AI models may be used and where they run — **including on the client side**, which is easy to miss (§3.7). |
+| Raw records must never leave the client's AWS account or region | Rules out third-party hosted databases entirely. Constrains which AI models may be used and where they run — **including on the client side**, which is easy to miss. |
 | Monthly infrastructure budget is capped | Cost control must be built into the architecture, not written into a runbook. |
-| The legacy system offers only a nightly batch export | Data freshness is capped at 24 hours and must be *shown*, not hidden. Writes cannot travel back in real time. It is also, unexpectedly, a cost advantage (§4.3). |
+| The legacy system offers only a nightly batch export | Data freshness is capped at 24 hours and must be *shown*, not hidden. Writes cannot travel back in real time. It is also, unexpectedly, a cost advantage. |
 | Query latency must feel conversational | A few seconds, end to end. |
 
 ## 1.3 Assumptions I am making explicit
@@ -695,59 +698,13 @@ the time of build.*
 
 ## 5.1 Prior MCP integration
 
-Yes — several. The most relevant here is an **investment assistant I built for Itaú**, Latin
-America's largest private bank.
-
-The product was an AI advisor that guides a customer through investing: understanding what
-they want, checking what they are permitted to hold, explaining the options, and placing the
-order. In effect, simulating what a human investment advisor does in a branch.
-
-**The MCP server was the translation layer between the language model and the bank's
-APIs** — and, deliberately, a layer *decoupled from the agent's execution environment*. The
-model never spoke to core banking systems. It called tools; the server translated those calls
-into the bank's existing API surface, applied the rules, and returned structured results.
-
-The tool surface covered the operations that define this domain:
-
-| Capability | What the tool did |
-|---|---|
-| **Suitability / risk profile** | Retrieve the customer's assessed investor profile — the tolerance band they have been formally classified into |
-| **Product eligibility** | Determine whether *this* customer may hold *this* fund — qualified-investor thresholds, product restrictions, profile compatibility |
-| **Product catalogue and detail** | Search available funds; return fees, minimum investment, liquidity and redemption terms, historical performance |
-| **Positions and balances** | Current holdings, available cash, portfolio composition |
-| **Transactions** | Place subscriptions and redemptions, and report order status |
-| **Simulation** | Projected outcomes under given contribution and horizon assumptions |
-
-**Why this is directly relevant to the architecture proposed above**, rather than merely
-adjacent experience:
-
-**It is the same decoupling argued for in §3.6.** The MCP server as a layer separate from the
-agent runtime is precisely the boundary this review recommends. In a bank it is not
-optional — protocol-handling code cannot share an execution context with systems that move
-money.
-
-**Eligibility was enforced server-side, never by the model.** The assistant could not decide
-that a customer qualified for a restricted fund; it could only *ask*, and the server answered
-from the customer's verified profile. This is exactly the rule stated in §3.5 — *the
-permission decision is derived on the server and is never a parameter the model supplies*.
-Brazilian securities regulation requires a documented suitability assessment before a product
-is recommended, which makes the constraint legal rather than architectural preference. It is
-the same shape as row-level security in the design above.
-
-**Transactions were confirmed, not autonomous.** The agent prepared an order and the customer
-confirmed it. That is the "pending approval, not done" rule from §3.7, learned in a setting
-where getting it wrong is a regulatory incident rather than a bug report.
-
-**And it was a translation layer over legacy systems that could not be changed** — the same
-fundamental problem as the MLS export here. The bank's core APIs were not going to be
-rewritten to suit an AI assistant. The value of the MCP layer was precisely that it absorbed
-the mismatch between what a language model can usefully call and what a decades-old system
-actually exposes.
-
-> *A specific to add if you want it: name one thing that proved harder than expected —
-> latency budgets across chained bank APIs, tool-surface granularity, disambiguating customer
-> intent before a transaction, or whatever it actually was. A concrete difficulty is more
-> convincing than a clean success story.*
+> **[TO BE COMPLETED — this section is the author's own professional experience and has
+> deliberately not been drafted for them.]**
+>
+> Name one real integration: what system it fronted, what the tools exposed, who consumed it,
+> and one thing that proved harder than expected. If it was not literally MCP — an agent
+> wired into an internal system, tool-calling over a legacy API, a function-calling layer over
+> a database — say so plainly and describe the equivalence. Specifics beat protocol purity.
 
 ## 5.2 How I would structure the first two weeks
 

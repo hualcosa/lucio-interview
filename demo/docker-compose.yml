@@ -1,0 +1,16 @@
+# Local dev loop. Iterating against Aurora burns ACU-hours; this is free.
+# Same migrations run against both.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mls
+      POSTGRES_PASSWORD: mls
+      POSTGRES_DB: mls
+    ports:
+      - "5433:5432"   # 5433 to avoid colliding with a local postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mls"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
