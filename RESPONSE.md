@@ -174,10 +174,6 @@ environment when requests arrive close together. So some questions return in a f
 second, and others take forty. For a conversational interface, unpredictability is more
 damaging than consistent slowness: users adapt to a system that is always slow, but they lose  trust in one that *sometimes* hangs, because they can never tell which they are about to get.
 
-**The waste is measurable in money.** Holding 10 GB of Lambda memory for roughly 40 seconds
-costs about **0.007 USD per query** — for the file loading alone, before any useful work. At
-1,000 queries a day that is **roughly 210 USD a month spent re-reading a file** that has not
-changed since the small hours of the morning.
 
 ### The fix — separate receiving from serving
 

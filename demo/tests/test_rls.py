@@ -10,7 +10,7 @@ import pytest
 
 from mls_agent.db import admin_conn, app_conn, migrate
 
-BROKER_A, BROKER_B = 900_001, 900_002
+BROKER_A, BROKER_B = 800_001, 800_002
 
 
 @pytest.fixture(autouse=True)
@@ -24,9 +24,9 @@ def seed():
                 (listing_id, brokered_by, status, price, bed, city, state,
                  updated_at, row_hash)
             VALUES
-                (990001, %s, 'for_sale', 400000, 3, 'Austin',  'Texas',   '2026-07-27', '\\x00'),
-                (990002, %s, 'for_sale', 600000, 4, 'Dallas',  'Texas',   '2026-07-27', '\\x00'),
-                (990003, %s, 'for_sale', 350000, 2, 'Houston', 'Texas',   '2026-07-27', '\\x00')
+                (9990001, %s, 'for_sale', 400000, 3, 'Austin',  'Texas',   '2026-07-27', '\\x00'),
+                (9990002, %s, 'for_sale', 600000, 4, 'Dallas',  'Texas',   '2026-07-27', '\\x00'),
+                (9990003, %s, 'for_sale', 350000, 2, 'Houston', 'Texas',   '2026-07-27', '\\x00')
             """,
             (BROKER_A, BROKER_A, BROKER_B),
         )
@@ -40,13 +40,15 @@ def seed():
 
 def visible_ids(brokerage_id: int) -> set[int]:
     with app_conn(brokerage_id) as conn:
-        rows = conn.execute("SELECT listing_id FROM listings WHERE listing_id >= 990000").fetchall()
+        rows = conn.execute(
+            "SELECT listing_id FROM listings WHERE listing_id >= 9990000"
+        ).fetchall()
     return {r[0] for r in rows}
 
 
 def test_principal_sees_only_own_listings():
-    assert visible_ids(BROKER_A) == {990001, 990002}
-    assert visible_ids(BROKER_B) == {990003}
+    assert visible_ids(BROKER_A) == {9990001, 9990002}
+    assert visible_ids(BROKER_B) == {9990003}
 
 
 def test_query_that_forgets_to_filter_still_cannot_leak():
@@ -57,7 +59,7 @@ def test_query_that_forgets_to_filter_still_cannot_leak():
     """
     with app_conn(BROKER_B) as conn:
         rows = conn.execute(
-            "SELECT brokered_by FROM listings WHERE listing_id >= 990000"
+            "SELECT brokered_by FROM listings WHERE listing_id >= 9990000"
         ).fetchall()
 
     assert {r[0] for r in rows} == {BROKER_B}
@@ -68,7 +70,9 @@ def test_session_without_a_principal_sees_nothing():
     from mls_agent.db import APP_URL
 
     with psycopg.connect(APP_URL) as conn:  # no set_config
-        rows = conn.execute("SELECT listing_id FROM listings WHERE listing_id >= 990000").fetchall()
+        rows = conn.execute(
+            "SELECT listing_id FROM listings WHERE listing_id >= 9990000"
+        ).fetchall()
 
     assert rows == []
 
@@ -78,7 +82,7 @@ def test_cannot_write_an_action_for_another_brokerage():
     with pytest.raises(psycopg.errors.InsufficientPrivilege), app_conn(BROKER_A) as conn:
         conn.execute(
             """INSERT INTO actions (listing_id, brokered_by, action_type, requested_by)
-                   VALUES (990003, %s, 'flag', 'test')""",
+                   VALUES (9990003, %s, 'flag', 'test')""",
             (BROKER_B,),
         )
 
@@ -88,10 +92,10 @@ def test_writes_land_awaiting_approval():
     with app_conn(BROKER_A) as conn:
         conn.execute(
             """INSERT INTO actions (listing_id, brokered_by, action_type, requested_by)
-               VALUES (990001, %s, 'flag', 'test')""",
+               VALUES (9990001, %s, 'flag', 'test')""",
             (BROKER_A,),
         )
-        status = conn.execute("SELECT status FROM actions WHERE listing_id = 990001").fetchone()[0]
+        status = conn.execute("SELECT status FROM actions WHERE listing_id = 9990001").fetchone()[0]
         conn.commit()
 
     assert status == "pending_approval"

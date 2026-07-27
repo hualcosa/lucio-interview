@@ -17,7 +17,7 @@ from mls_agent import domain, mcp_adapter
 from mls_agent.db import admin_conn, migrate
 from mls_agent.domain import AuthContext
 
-BROKER, OTHER = 920_001, 920_002
+BROKER, OTHER = 820_001, 820_002
 AUTH = AuthContext(brokerage_id=BROKER, subject="agent@example.com")
 
 SRC = Path(mcp_adapter.__file__).parent
@@ -34,12 +34,12 @@ def seed():
                 (listing_id, brokered_by, status, price, bed, bath, city, state,
                  list_date, updated_at, row_hash)
             VALUES
-                (992001, %(b)s, 'for_sale', 450000, 3, 2, 'Austin', 'Texas',
+                (9992001, %(b)s, 'for_sale', 450000, 3, 2, 'Austin', 'Texas',
                  current_date - 120, current_date, '\\x00'),
                 -- a second row for the same broker, so limit=1 actually truncates
-                (992003, %(b)s, 'for_sale', 470000, 4, 3, 'Austin', 'Texas',
+                (9992003, %(b)s, 'for_sale', 470000, 4, 3, 'Austin', 'Texas',
                  current_date - 110, current_date, '\\x00'),
-                (992002, %(o)s, 'for_sale', 460000, 3, 2, 'Austin', 'Texas',
+                (9992002, %(o)s, 'for_sale', 460000, 3, 2, 'Austin', 'Texas',
                  current_date - 120, current_date, '\\x00')
             """,
             {"b": BROKER, "o": OTHER},
@@ -109,7 +109,7 @@ class TestToolContracts:
 class TestDispatch:
     def test_search_returns_only_the_callers_listings(self):
         payload = mcp_adapter.dispatch(AUTH, "search_listings", {"city": "Austin"})
-        assert {r["listing_id"] for r in payload["rows"]} == {992001, 992003}
+        assert {r["listing_id"] for r in payload["rows"]} == {9992001, 9992003}
 
     def test_responses_carry_freshness_in_prose_not_only_in_a_field(self):
         payload = mcp_adapter.dispatch(AUTH, "search_listings", {"city": "Austin"})
@@ -129,11 +129,13 @@ class TestDispatch:
 
     def test_flagging_reports_pending_rather_than_done(self):
         payload = mcp_adapter.dispatch(
-            AUTH, "flag_listing", {"listing_id": 992001, "reason": "stale price"}
+            AUTH, "flag_listing", {"listing_id": 9992001, "reason": "stale price"}
         )
         assert payload["rows"][0]["status"] == "pending_approval"
 
     def test_another_brokerages_listing_is_not_found_rather_than_forbidden(self):
         """Confirming a record exists but is not yours is itself a disclosure."""
         with pytest.raises(PermissionError):
-            mcp_adapter.dispatch(AUTH, "flag_listing", {"listing_id": 992002, "reason": "not mine"})
+            mcp_adapter.dispatch(
+                AUTH, "flag_listing", {"listing_id": 9992002, "reason": "not mine"}
+            )

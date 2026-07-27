@@ -101,6 +101,75 @@ TOOLS = [
         },
     ),
     types.Tool(
+        name="semantic_search",
+        description=(
+            "Search the TEXT of listing documents — HOA rules, disclosures — by "
+            "meaning. Use this when the question is about what a document SAYS: "
+            "rental restrictions, pet rules, special assessments, disclosed "
+            "defects. Returns the passage and its citation. "
+            "Do NOT use this for price, bedroom or date criteria — those are exact "
+            "facts and belong in search_listings."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "minLength": 3,
+                    "description": "What to look for, in natural language",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": domain.MAX_LIMIT,
+                    "default": domain.DEFAULT_LIMIT,
+                },
+            },
+            "required": ["question"],
+            "additionalProperties": False,
+        },
+    ),
+    types.Tool(
+        name="hybrid_search",
+        description=(
+            "Combine exact listing criteria with a search of document text. Use "
+            "this when a question has BOTH kinds of condition — for example "
+            "'three-bed condos under $500k in Austin that allow short-term "
+            "rentals'. The numeric and location filters are applied exactly; the "
+            "document condition is matched by meaning within those results."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "minLength": 3,
+                    "description": "The document-related part of the question",
+                },
+                "city": {"type": "string"},
+                "state": {"type": "string"},
+                "status": {
+                    "type": "string",
+                    "enum": sorted(domain.VALID_STATUS),
+                    "default": "for_sale",
+                },
+                "min_price": {"type": "number", "minimum": 0},
+                "max_price": {"type": "number", "minimum": 0},
+                "beds": {"type": "integer", "minimum": 0},
+                "min_beds": {"type": "integer", "minimum": 0},
+                "min_days_on_market": {"type": "integer", "minimum": 0},
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": domain.MAX_LIMIT,
+                    "default": domain.DEFAULT_LIMIT,
+                },
+            },
+            "required": ["question"],
+            "additionalProperties": False,
+        },
+    ),
+    types.Tool(
         name="flag_listing",
         description=(
             "Flag a listing for human review — for example a stale price or a "
@@ -123,8 +192,13 @@ TOOLS = [
 HANDLERS: dict[str, Callable[..., domain.Result]] = {
     "search_listings": domain.search_listings,
     "market_stats": domain.market_stats,
+    "semantic_search": domain.semantic_search,
+    "hybrid_search": domain.hybrid_search,
     "flag_listing": domain.flag_listing,
 }
+
+# Tools whose first positional argument is the question rather than a keyword.
+_QUESTION_TOOLS = {"semantic_search", "hybrid_search"}
 
 
 def dispatch(auth: AuthContext, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -139,6 +213,9 @@ def dispatch(auth: AuthContext, name: str, arguments: dict[str, Any]) -> dict[st
 
     if name == "flag_listing":
         result = handler(auth, arguments["listing_id"], arguments["reason"])
+    elif name in _QUESTION_TOOLS:
+        args = dict(arguments)
+        result = handler(auth, args.pop("question"), **args)
     else:
         result = handler(auth, **arguments)
 

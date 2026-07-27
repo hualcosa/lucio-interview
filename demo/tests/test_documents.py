@@ -13,7 +13,7 @@ import pytest
 
 from mls_agent.db import admin_conn, app_conn, migrate
 
-BROKER, OTHER = 930_001, 930_002
+BROKER, OTHER = 830_001, 830_002
 DIMS = 256
 
 
@@ -31,14 +31,16 @@ def seed():
             """
             INSERT INTO listings (listing_id, brokered_by, status, price, bed, city, state,
                                   updated_at, row_hash)
-            VALUES (993001, %(b)s, 'for_sale', 450000, 3, 'Austin', 'Texas', current_date, '\\x00'),
-                   (993002, %(o)s, 'for_sale', 460000, 3, 'Austin', 'Texas', current_date, '\\x00')
+            VALUES (9993001, %(b)s, 'for_sale', 450000, 3, 'Austin', 'Texas',
+                    current_date, '\\x00'),
+                   (9993002, %(o)s, 'for_sale', 460000, 3, 'Austin', 'Texas',
+                    current_date, '\\x00')
             """,
             {"b": BROKER, "o": OTHER},
         )
         for lid, broker, body, v in (
-            (993001, BROKER, "Leases under 30 days are prohibited.", vec(0.10)),
-            (993002, OTHER, "Short-term rentals are permitted.", vec(0.90)),
+            (9993001, BROKER, "Leases under 30 days are prohibited.", vec(0.10)),
+            (9993002, OTHER, "Short-term rentals are permitted.", vec(0.90)),
         ):
             doc_id = conn.execute(
                 """INSERT INTO documents
@@ -82,13 +84,13 @@ class TestTenancy:
     def test_a_principal_sees_only_its_own_documents(self):
         with app_conn(BROKER) as conn:
             rows = conn.execute("SELECT listing_id FROM documents").fetchall()
-        assert {r[0] for r in rows} == {993001}
+        assert {r[0] for r in rows} == {9993001}
 
     def test_chunks_are_scoped_too(self):
         """Chunks carry their own tenant column rather than joining to find it."""
         with app_conn(OTHER) as conn:
             rows = conn.execute("SELECT listing_id FROM chunks").fetchall()
-        assert {r[0] for r in rows} == {993002}
+        assert {r[0] for r in rows} == {9993002}
 
     def test_similarity_search_cannot_reach_another_tenant(self):
         """A vector query aimed squarely at someone else's passage returns nothing.
@@ -101,7 +103,7 @@ class TestTenancy:
                 "SELECT listing_id FROM chunks ORDER BY embedding <=> %s::halfvec LIMIT 5",
                 (vec(0.90),),  # this is OTHER's vector
             ).fetchall()
-        assert {r[0] for r in rows} == {993001}
+        assert {r[0] for r in rows} == {9993001}
 
     def test_a_session_without_a_principal_sees_no_documents(self):
         from mls_agent.db import APP_URL
@@ -131,15 +133,15 @@ class TestHybridShape:
             ).fetchall()
 
         assert len(rows) == 1
-        assert rows[0][0] == 993001
+        assert rows[0][0] == 9993001
 
     def test_deleting_a_document_removes_its_chunks(self):
         """Orphaned vectors are answers to questions about documents that no
         longer exist. The cascade is not a convenience."""
         with admin_conn() as conn:
-            conn.execute("DELETE FROM documents WHERE listing_id = 993001")
+            conn.execute("DELETE FROM documents WHERE listing_id = 9993001")
             remaining = conn.execute(
-                "SELECT count(*) FROM chunks WHERE listing_id = 993001"
+                "SELECT count(*) FROM chunks WHERE listing_id = 9993001"
             ).fetchone()[0]
             conn.commit()
         assert remaining == 0

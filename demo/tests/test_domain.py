@@ -13,7 +13,7 @@ from mls_agent import domain
 from mls_agent.db import admin_conn, migrate
 from mls_agent.domain import AuthContext
 
-BROKER, OTHER = 910_001, 910_002
+BROKER, OTHER = 810_001, 810_002
 AUTH = AuthContext(brokerage_id=BROKER, subject="agent@example.com")
 
 
@@ -29,19 +29,19 @@ def seed():
                  city, state, zip_code, list_date, updated_at, row_hash)
             VALUES
                 -- three-bed, under 500k, listed 120 days ago: the canonical hit
-                (991001, %(b)s, 'for_sale', 450000, 3, 2, 1800, 'Austin', 'Texas', '78701',
+                (9991001, %(b)s, 'for_sale', 450000, 3, 2, 1800, 'Austin', 'Texas', '78701',
                  current_date - 120, current_date, '\\x00'),
                 -- three-bed but over budget: must NOT come back for max_price=500000
-                (991002, %(b)s, 'for_sale', 530000, 3, 2, 1900, 'Austin', 'Texas', '78701',
+                (9991002, %(b)s, 'for_sale', 530000, 3, 2, 1900, 'Austin', 'Texas', '78701',
                  current_date - 130, current_date, '\\x00'),
                 -- under budget but listed yesterday: fails the days-on-market filter
-                (991003, %(b)s, 'for_sale', 400000, 3, 1, 1500, 'Austin', 'Texas', '78702',
+                (9991003, %(b)s, 'for_sale', 400000, 3, 1, 1500, 'Austin', 'Texas', '78702',
                  current_date - 1,   current_date, '\\x00'),
                 -- already sold
-                (991004, %(b)s, 'sold',     300000, 3, 1, 1400, 'Austin', 'Texas', '78702',
+                (9991004, %(b)s, 'sold',     300000, 3, 1, 1400, 'Austin', 'Texas', '78702',
                  current_date - 200, current_date, '\\x00'),
                 -- another brokerage's listing, otherwise a perfect match
-                (991005, %(o)s, 'for_sale', 420000, 3, 2, 1700, 'Austin', 'Texas', '78701',
+                (9991005, %(o)s, 'for_sale', 420000, 3, 2, 1700, 'Austin', 'Texas', '78701',
                  current_date - 150, current_date, '\\x00')
             """,
             {"b": BROKER, "o": OTHER},
@@ -70,21 +70,21 @@ class TestSearchIsExact:
 
     def test_price_ceiling_is_a_comparison_not_a_similarity(self):
         result = domain.search_listings(AUTH, city="Austin", max_price=500_000)
-        assert 991002 not in ids(result), "a $530k listing came back for 'under $500k'"
+        assert 9991002 not in ids(result), "a $530k listing came back for 'under $500k'"
 
     def test_days_on_market_filter_is_exact(self):
         result = domain.search_listings(AUTH, city="Austin", min_days_on_market=90)
-        assert 991003 not in ids(result)
+        assert 9991003 not in ids(result)
 
     def test_the_canonical_question(self):
         """Three-bed, under $500k, sitting more than ninety days."""
         result = domain.search_listings(
             AUTH, city="Austin", beds=3, max_price=500_000, min_days_on_market=90
         )
-        assert ids(result) == {991001}
+        assert ids(result) == {9991001}
 
     def test_status_defaults_to_for_sale(self):
-        assert 991004 not in ids(domain.search_listings(AUTH, city="Austin"))
+        assert 9991004 not in ids(domain.search_listings(AUTH, city="Austin"))
 
     def test_rejects_unknown_status_rather_than_returning_nothing(self):
         with pytest.raises(ValueError, match="status must be one of"):
@@ -94,7 +94,7 @@ class TestSearchIsExact:
 class TestAuthorisation:
     def test_other_brokerages_listings_are_invisible(self):
         result = domain.search_listings(AUTH, city="Austin", beds=3, min_days_on_market=90)
-        assert 991005 not in ids(result), "leaked another brokerage's listing"
+        assert 9991005 not in ids(result), "leaked another brokerage's listing"
 
     def test_brokerage_is_not_a_caller_supplied_filter(self):
         """There is no parameter to widen scope with — by construction."""
@@ -129,17 +129,17 @@ class TestFreshness:
 
 class TestWritesArePrepared:
     def test_flagging_requires_approval(self):
-        result = domain.flag_listing(AUTH, 991001, reason="price looks stale")
+        result = domain.flag_listing(AUTH, 9991001, reason="price looks stale")
         assert result.rows[0]["status"] == "pending_approval"
         assert result.meta["requires_approval"] is True
 
     def test_cannot_flag_another_brokerages_listing(self):
         with pytest.raises(PermissionError):
-            domain.flag_listing(AUTH, 991005, reason="not mine to flag")
+            domain.flag_listing(AUTH, 9991005, reason="not mine to flag")
 
     def test_reason_is_mandatory(self):
         with pytest.raises(ValueError, match="reason is required"):
-            domain.flag_listing(AUTH, 991001, reason="   ")
+            domain.flag_listing(AUTH, 9991001, reason="   ")
 
 
 class TestAggregates:
