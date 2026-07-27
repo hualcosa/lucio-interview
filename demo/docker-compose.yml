@@ -2,7 +2,9 @@
 # Same migrations run against both.
 services:
   db:
-    image: postgres:16-alpine
+    # pgvector is an extension, not a service — it runs inside this same Postgres
+    # process. That is the whole point: filters and vectors share one query plan.
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: mls
       POSTGRES_PASSWORD: mls

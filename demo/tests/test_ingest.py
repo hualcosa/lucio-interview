@@ -52,7 +52,8 @@ def listing(lid: int, *, price="100000.0", status="for_sale", broker="500.0"):
 def clean():
     migrate()
     with admin_conn() as conn:
-        conn.execute("TRUNCATE listings, ingest_runs RESTART IDENTITY")
+        # CASCADE because documents and chunks hang off listings.
+        conn.execute("TRUNCATE listings, ingest_runs RESTART IDENTITY CASCADE")
         conn.commit()
     yield
 

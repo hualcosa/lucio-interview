@@ -36,6 +36,9 @@ def seed():
             VALUES
                 (992001, %(b)s, 'for_sale', 450000, 3, 2, 'Austin', 'Texas',
                  current_date - 120, current_date, '\\x00'),
+                -- a second row for the same broker, so limit=1 actually truncates
+                (992003, %(b)s, 'for_sale', 470000, 4, 3, 'Austin', 'Texas',
+                 current_date - 110, current_date, '\\x00'),
                 (992002, %(o)s, 'for_sale', 460000, 3, 2, 'Austin', 'Texas',
                  current_date - 120, current_date, '\\x00')
             """,
@@ -106,7 +109,7 @@ class TestToolContracts:
 class TestDispatch:
     def test_search_returns_only_the_callers_listings(self):
         payload = mcp_adapter.dispatch(AUTH, "search_listings", {"city": "Austin"})
-        assert [r["listing_id"] for r in payload["rows"]] == [992001]
+        assert {r["listing_id"] for r in payload["rows"]} == {992001, 992003}
 
     def test_responses_carry_freshness_in_prose_not_only_in_a_field(self):
         payload = mcp_adapter.dispatch(AUTH, "search_listings", {"city": "Austin"})
