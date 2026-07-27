@@ -59,7 +59,7 @@ make destroy
 ## Cost
 
 Designed to be run ephemerally: deploy, measure, capture results, destroy. Estimated total
-for a full run is **$15–25**, dominated by Aurora capacity-hours rather than by data volume —
+for a full run is **\$15–25**, dominated by Aurora capacity-hours rather than by data volume —
 2.2M records is a 40 MB file and costs almost nothing to store or load.
 
 Guardrails in the stack: monthly budget with forecast alerting, a ceiling on database

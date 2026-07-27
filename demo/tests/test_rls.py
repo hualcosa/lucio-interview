@@ -13,7 +13,7 @@ from mls_agent.db import admin_conn, app_conn, migrate
 BROKER_A, BROKER_B = 900_001, 900_002
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def seed():
     migrate()
     with admin_conn() as conn:

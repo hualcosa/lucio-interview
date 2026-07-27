@@ -37,6 +37,7 @@ NEW_LISTING_RATE = 0.005
 WITHDRAWN_RATE = 0.002
 
 SEED = 20260727  # reproducible: same input, same dumps, every run
+LIST_DATE_EPOCH = date(2026, 7, 26)  # fixed: a listing's list date does not move
 
 OUT_FIELDS = [
     "listing_id",
@@ -57,14 +58,16 @@ OUT_FIELDS = [
 ]
 
 
-def derive_list_date(listing_id: int, as_of: date) -> date:
-    """Stable pseudo-random list date within the last ~2 years.
+def derive_list_date(listing_id: int) -> date:
+    """Stable pseudo-random list date within ~2 years of a FIXED anchor.
 
-    Hash-derived rather than random so a listing keeps the same date across dumps —
-    otherwise every row would look changed and the diff would be meaningless.
+    Anchored to LIST_DATE_EPOCH rather than to the dump date. Deriving it from the
+    dump date would age every listing by a day between dumps, changing every row
+    hash and making the diff report 100% churn — which is exactly what the circuit
+    breaker caught the first time this ran.
     """
     h = hashlib.blake2b(str(listing_id).encode(), digest_size=4).digest()
-    return as_of - timedelta(days=int.from_bytes(h, "big") % 730)
+    return LIST_DATE_EPOCH - timedelta(days=int.from_bytes(h, "big") % 730)
 
 
 def read_raw(limit: int | None) -> list[dict[str, str]]:
@@ -94,7 +97,7 @@ def write_dump(rows: list[dict[str, str]], dump_date: date) -> Path:
             w.writerow(
                 row
                 | {
-                    "list_date": derive_list_date(lid, dump_date).isoformat(),
+                    "list_date": derive_list_date(lid).isoformat(),
                     "updated_at": dump_date.isoformat(),
                 }
             )
@@ -183,9 +186,8 @@ def _self_check() -> None:
     assert 0.01 < changed / len(rows) < 0.05, f"churn {changed / len(rows):.2%} outside 1-5%"
 
     # Same id must yield the same list date, or every row looks changed.
-    d = date(2026, 7, 26)
-    assert derive_list_date(42, d) == derive_list_date(42, d)
-    assert (d - derive_list_date(42, d)).days < 730
+    assert derive_list_date(42) == derive_list_date(42)
+    assert (LIST_DATE_EPOCH - derive_list_date(42)).days < 730
 
     print("self-check ok")
 

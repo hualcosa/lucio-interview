@@ -30,7 +30,7 @@ to follow the argument end to end without skipping.
 ## 1.1 The situation
 
 A real-estate brokerage wants staff to ask questions of their own data in plain English —
-*"which three-bedroom condos under $500,000 have been sitting more than ninety days?"* — and
+*"which three-bedroom condos under \$500,000 have been sitting more than ninety days?"* — and
 to act on the answers, through an AI agent.
 
 The data lives in an MLS. A **Multiple Listing Service** is the cooperative database that US
@@ -68,8 +68,7 @@ This second assumption is the one that removes vector search from the design alt
 it carries real weight. Section 3.3 explains the reasoning, and gives the precise condition under
 which I would reverse the decision.
 
-**Assumption 3 — Realistic figures where the brief gives none:** ~1–2 KB per record (so a
-3–6 GB nightly file), 0.5–2% of records changing each night, and roughly 1,000 queries a day
+**Assumption 3 — Realistic figures where the brief gives none:** ~1–2 KB per record (so a 3–6 GB nightly file), 0.5–2% of records changing each night, and roughly 1,000 queries a day
 for costing purposes.
 
 
@@ -112,24 +111,6 @@ the other, so every query pays the full cost of the conversion, over and over.
 Once that boundary is missing, everything else follows: the slow scan, the exhausted memory,
 the recomputed embeddings, the runaway cost.
 
-## 2.3 The problems, in brief
-
-I have graded them by severity, because they are **not** equally severe, and saying so is
-part of an honest review — treating every item as equally damning is what you do when you are
-pattern-matching rather than thinking.
-
-| # | Problem | Severity |
-|---|---|---|
-| 1 | The export file is being used as the database | **High** |
-| 2 | Vector search does not belong in this system at all | **High** — *and not on the original list* |
-| 3 | Embeddings are recomputed on every query | **High** — *a consequence of 1 and 2* |
-| 4 | No authentication layer | **High** |
-| 5 | The MCP server and business logic share one function | **Medium** — *a bad practice* |
-| 6 | No write path, and no handling of stale data | **High** |
-| 7 | The residency rule is violated on the client side, invisibly | **High** — *not on the original list* |
-
-Two of these were not in the brief. Finding them is, I think, the most useful thing this
-review does.
 
 ---
 
@@ -150,7 +131,6 @@ flowchart LR
 
 Everything happens in one place, on every request, from cold.
 
----
 
 ## 3.2 Problem 1 — The export file is being used as the database
 
@@ -168,8 +148,6 @@ programming language's internal objects typically expands **three to ten times**
 file becomes **15–30 GB of memory**. AWS Lambda has a hard ceiling of 10 GB. The design
 crosses that ceiling before it ever reaches 3 million records.
 
-The trap is that the file *looks* like it fits. Nothing in the design signals the problem
-until it fails in production.
 
 Three further consequences deserve naming:
 
@@ -186,8 +164,8 @@ damaging than consistent slowness: users adapt to a system that is always slow, 
 trust in one that *sometimes* hangs, because they can never tell which they are about to get.
 
 **The waste is measurable in money.** Holding 10 GB of Lambda memory for roughly 40 seconds
-costs about **$0.007 per query** — for the file loading alone, before any useful work. At
-1,000 queries a day that is **roughly $210 a month spent re-reading a file that has not
+costs about \$0.007 per query — for the file loading alone, before any useful work. At
+1,000 queries a day that is **roughly \$210 a month spent re-reading a file that has not
 changed since the small hours of the morning.**
 
 ### The fix — separate receiving from serving
@@ -219,7 +197,7 @@ brokerage does not re-list its entire inventory every night. At 0.5–2% change,
 of an ever-growing burden.
 
 **Queries stop paying for the file.** A database with proper indexes seeks directly to the
-matching rows. The question *"three-bed condos under $500,000 in these ZIP codes, listed more
+matching rows. The question *"three-bed condos under \$500,000 in these ZIP codes, listed more
 than 90 days"* becomes an indexed lookup returning in **20–100 milliseconds**, at 3 million
 rows or at 10 million.
 
@@ -254,8 +232,8 @@ Consider a record: `{price: 450000, bedrooms: 3, city: "Austin", status: "active
 are exact, unambiguous facts. Converting them into a similarity score takes information that
 was *precise* and makes it *approximate*.
 
-The practical consequence: asked for listings under $500,000, a vector search will
-cheerfully return a $530,000 property, because the two descriptions are numerically similar
+The practical consequence: asked for listings under \$500,000, a vector search will
+cheerfully return a \$530,000 property, because the two descriptions are numerically similar
 in meaning-space. It is not broken — it is doing exactly what it was designed to do. It is
 simply the wrong instrument. **For a compliance-sensitive client, an answer that is
 confidently and subtly wrong is worse than no answer**, because nobody catches it.
@@ -276,7 +254,7 @@ For text, that chain is right. For a table of structured facts, the correct chai
 > natural-language interface → **the model chooses a pre-approved query and fills in its
 > parameters**
 
-The AI's job is to translate *"three-bed condos under $500k sitting over 90 days"* into a
+The AI's job is to translate *"three-bed condos under \$500k sitting over 90 days"* into a
 **function call** — `search_listings(bedrooms=3, max_price=500000, min_days_on_market=90)` —
 not into a vector. The database then answers exactly, the way databases have answered exactly
 for fifty years.
@@ -327,8 +305,8 @@ Every user question triggers the regeneration of embeddings for the entire datas
 ### Why this fails
 
 Purely arithmetically: 3 million records at roughly 150 words of text each is about 450
-million units of text to process. At Amazon's current embedding price ($0.02 per million),
-that is **approximately $9 for a single user question.**
+million units of text to process. At Amazon's current embedding price (\$0.02 per million),
+that is **approximately \$9 for a single user question.**
 
 Ten questions would exhaust a month of most small-business infrastructure budgets. The
 processing time would be measured in hours, not the few seconds required.
@@ -354,7 +332,7 @@ Two things resolve it, and neither is a caching optimisation:
 
 So the honest answer to this item is: *the fix is not to cache the embeddings. It is to
 delete them.* And that reframes the cost figure — **the draft was not overspending on a
-poorly built feature. It was spending $9 a query on a feature that should not exist.**
+poorly built feature. It was spending \$9 a query on a feature that should not exist.**
 
 ---
 
@@ -596,7 +574,7 @@ flowchart TB
 |---|---|---|
 | The file *is* the database | Nightly pipeline: land → compare → update | Restores the missing boundary |
 | Vector search over structured rows | **Removed.** Vetted parameterised queries | Precision; wrong instrument for the data |
-| Re-embed everything per query | No embeddings at all | ~$9/query → $0 |
+| Re-embed everything per query | No embeddings at all | ~\$9/query → \$0 |
 | In-memory scan of the whole file | Indexed database queries | 40 s → 20–100 ms |
 | Authentication "later" | Identity → token → row-level security, day one | Authorisation is a data-layer property |
 | One function holds everything | Internal boundary; thin protocol adapter | Reuse, testability, blast radius |
@@ -630,7 +608,7 @@ architecture*, not in a document somebody is supposed to read.
 - **Cached answers valid until the next nightly load.** Data changes once a day, so a
   24-hour cache is not reckless here — it is *provably correct*. The constraint everyone
   reads as a limitation turns out to be the strongest cost lever in the design.
-- **No NAT Gateway.** Using private AWS network endpoints instead saves roughly $32 a month
+- **No NAT Gateway.** Using private AWS network endpoints instead saves roughly \$32 a month
   *and* means traffic never touches the public internet — which is itself the residency
   argument, made structural.
 - Cost-allocation tags, so spend can be attributed per client office
@@ -660,12 +638,12 @@ architecture*, not in a document somebody is supposed to read.
 
 | Component | Monthly |
 |---|---|
-| Aurora Serverless PostgreSQL (0.5–2 capacity units) | ~$45–150 |
-| S3 storage (~5 GB plus history) | <$5 |
-| Lambda (adapter, domain service, nightly ingest) | ~$10–30 |
-| Embeddings | **$0** — removed |
-| NAT Gateway | **$0** — private endpoints only |
-| **Infrastructure floor** | **~$60–185** |
+| Aurora Serverless PostgreSQL (0.5–2 capacity units) | ~\$45–150 |
+| S3 storage (~5 GB plus history) | <\$5 |
+| Lambda (adapter, domain service, nightly ingest) | ~\$10–30 |
+| Embeddings | **\$0** — removed |
+| NAT Gateway | **\$0** — private endpoints only |
+| **Infrastructure floor** | **~\$60–185** |
 | AI model inference | The dominant variable; scales with usage and model choice |
 
 | Where a query's time goes | |
@@ -674,9 +652,9 @@ architecture*, not in a document somebody is supposed to read.
 | Indexed database query over 3M rows | ~20–100 ms |
 | **AI model generating the reply** | **1–3 s** |
 
-**The comparison that matters:** the draft spends roughly **$9 per query on embeddings
+**The comparison that matters:** the draft spends roughly **\$9 per query on embeddings
 alone** — approximately the *monthly* infrastructure cost of the revised design, consumed by
-a single question. Plus about **$210 a month** re-reading an unchanged file.
+a single question. Plus about **\$210 a month** re-reading an unchanged file.
 
 **And a note on where to optimise:** once the data layer is fixed, the AI model accounts for
 80–90% of response time. Everything else is noise. That is worth knowing before anyone

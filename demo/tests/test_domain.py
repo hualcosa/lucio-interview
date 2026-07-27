@@ -17,7 +17,7 @@ BROKER, OTHER = 910_001, 910_002
 AUTH = AuthContext(brokerage_id=BROKER, subject="agent@example.com")
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def seed():
     migrate()
     with admin_conn() as conn:
