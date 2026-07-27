@@ -30,7 +30,7 @@ to follow the argument end to end without skipping.
 ## 1.1 The situation
 
 A real-estate brokerage wants staff to ask questions of their own data in plain English —
-*"which three-bedroom condos under \$500,000 have been sitting more than ninety days?"* — and
+*"which three-bedroom condos under $500,000 have been sitting more than ninety days?"* — and
 to act on the answers, through an AI agent.
 
 The data lives in an MLS. A **Multiple Listing Service** is the cooperative database that US
@@ -61,14 +61,26 @@ alternative in case I am wrong.
 
 
 
-**Assumption 2 — Therefore the data has no substantial free text.** Prices, bedroom counts,
-addresses, statuses, dates. Facts in columns, not prose.
+**Assumption 2 — The corpus is mixed, and the two halves need different treatment.**
 
-This second assumption is the one that removes vector search from the design altogether, so
-it carries real weight. Section 3.3 explains the reasoning, and gives the precise condition under
-which I would reverse the decision.
+The structured export is prices, bedroom counts, addresses, statuses and dates — facts in
+columns. But a real listing file also carries **documents**: HOA rules, seller disclosures,
+inspection reports. These are prose, written by lawyers and inspectors, and they answer a
+whole class of question the columns cannot.
 
-**Assumption 3 — Realistic figures where the brief gives none:** ~1–2 KB per record (so a 3–6 GB nightly file), 0.5–2% of records changing each night, and roughly 1,000 queries a day
+This split is the single most consequential judgment in the review. It does not remove vector
+search — it decides **what gets embedded and what never should**. Section 3.3 sets out the
+rule.
+
+**Assumption 3 — The user is a broker or agent inside the brokerage, not a consumer.**
+
+The brief says the client wants agents to query *their* data, and "act on" it. That is
+internal operations — flag a listing, raise a task — not a public property portal. The
+distinction matters because it fixes the tenancy model: every request belongs to one
+brokerage, and that scoping runs all the way down to the database (Section 3.5). A
+consumer-facing portal would be a different system with different authentication entirely.
+
+**Assumption 4 — Realistic figures where the brief gives none:** ~1–2 KB per record (so a 3–6 GB nightly file), 0.5–2% of records changing each night, and roughly 1,000 queries a day
 for costing purposes.
 
 
@@ -160,13 +172,12 @@ reading impossible.
 **The latency is erratic rather than uniformly slow, which is worse.** Lambda reuses a warm
 environment when requests arrive close together. So some questions return in a fraction of a
 second, and others take forty. For a conversational interface, unpredictability is more
-damaging than consistent slowness: users adapt to a system that is always slow, but they lose
-trust in one that *sometimes* hangs, because they can never tell which they are about to get.
+damaging than consistent slowness: users adapt to a system that is always slow, but they lose  trust in one that *sometimes* hangs, because they can never tell which they are about to get.
 
 **The waste is measurable in money.** Holding 10 GB of Lambda memory for roughly 40 seconds
-costs about \$0.007 per query — for the file loading alone, before any useful work. At
-1,000 queries a day that is **roughly \$210 a month spent re-reading a file that has not
-changed since the small hours of the morning.**
+costs about **0.007 USD per query** — for the file loading alone, before any useful work. At
+1,000 queries a day that is **roughly 210 USD a month spent re-reading a file** that has not
+changed since the small hours of the morning.
 
 ### The fix — separate receiving from serving
 
@@ -189,59 +200,48 @@ changed, and updates only those rows in a real database — **Amazon Aurora Serv
 managed PostgreSQL that scales its capacity with demand and lives inside the client's own
 network.
 
-Two properties matter here.
+Two properties matter here:
 
 **Only the changes are processed.** The export is a full dump, but real churn is small — a
 brokerage does not re-list its entire inventory every night. At 0.5–2% change, that is roughly
-15,000–60,000 records rather than 3 million. The nightly job becomes minutes of work instead
-of an ever-growing burden.
+15,000–60,000 records rather than 3 million. 
 
 **Queries stop paying for the file.** A database with proper indexes seeks directly to the
-matching rows. The question *"three-bed condos under \$500,000 in these ZIP codes, listed more
-than 90 days"* becomes an indexed lookup returning in **20–100 milliseconds**, at 3 million
-rows or at 10 million.
+matching rows. The question *"three-bed condos under $500,000 in these ZIP codes, listed more than 90 days"* becomes an indexed lookup returning in 20–100 milliseconds, at 3 million rows or at 10 million.
 
-> **A note on the file format.** The brief says the legacy system exposes no real-time API.
-> It does *not* say we cannot influence what goes *inside* the nightly file. Asking for
-> **Parquet** instead of CSV — a columnar format that is 5–10× smaller, carries types, and
-> permits reading only the needed columns — or simply asking for an `updated_at` timestamp
-> column, would turn the nightly comparison from a file-diffing exercise into a trivial
-> filter. It costs one conversation, and it is the kind of request nobody makes because they
-> read the constraint as more rigid than it is.
 
 ---
 
-## 3.3 Problem 2 — Vector search does not belong in this system
+## 3.3 Problem 2 — Everything is embedded, indiscriminately
 
-**This problem was not in the brief.** The listed item is that embeddings are recomputed on
-every query, which frames the issue as an efficiency bug. I believe the real problem sits one
-level above that.
+The listed item is that embeddings are recomputed on every query, which frames the issue as
+an efficiency bug. There are actually **two separate mistakes** here, and they have different
+fixes. This section covers the first: *what* gets embedded. Section 3.4 covers the second:
+*when*.
 
 ### What "vector search" means, briefly
 
 Modern AI can convert a passage of text into a list of numbers — an **embedding** — arranged
 so that texts with similar *meaning* end up with similar numbers. This lets a system find
-documents that are conceptually related even when they share no words. It is the technology
-behind "search by meaning," and it is genuinely powerful for prose.
+passages that are conceptually related even when they share no words. It is the technology
+behind "search by meaning," and for prose it is genuinely powerful.
+
+The word doing the work in that sentence is **prose**.
 
 ### Why it fails here
 
-**It is being applied to data that has no prose in it.**
+The draft embeds the whole dataset. But the dataset is not one kind of thing, and the half
+that is a table of facts should never go near a vector.
 
 Consider a record: `{price: 450000, bedrooms: 3, city: "Austin", status: "active"}`. Those
 are exact, unambiguous facts. Converting them into a similarity score takes information that
 was *precise* and makes it *approximate*.
 
-The practical consequence: asked for listings under \$500,000, a vector search will
-cheerfully return a \$530,000 property, because the two descriptions are numerically similar
-in meaning-space. It is not broken — it is doing exactly what it was designed to do. It is
+The practical consequence: asked for listings under $500,000, a vector search will
+cheerfully return a $530,000 property, because the two descriptions sit close together in
+meaning-space. It is not broken — it is doing exactly what it was designed to do. It is
 simply the wrong instrument. **For a compliance-sensitive client, an answer that is
 confidently and subtly wrong is worse than no answer**, because nobody catches it.
-
-And in the other direction: *"which listings mention foundation problems?"* cannot be
-answered by any technology whatsoever if the export contains no descriptive text. The
-capability vector search would provide is not merely inefficient here — it has nothing to
-operate on.
 
 ### The underlying error
 
@@ -249,50 +249,101 @@ The draft follows a chain of reasoning that has become almost automatic:
 
 > natural-language interface → retrieval-augmented generation → vector database
 
-For text, that chain is right. For a table of structured facts, the correct chain is:
+For prose, that chain is right. For a table of facts, the correct chain is:
 
 > natural-language interface → **the model chooses a pre-approved query and fills in its
 > parameters**
 
-The AI's job is to translate *"three-bed condos under \$500k sitting over 90 days"* into a
+The AI's job is to translate *"three-bed condos under $500k sitting over 90 days"* into a
 **function call** — `search_listings(bedrooms=3, max_price=500000, min_days_on_market=90)` —
 not into a vector. The database then answers exactly, the way databases have answered exactly
 for fifty years.
 
-### The fix — remove it, and state exactly what would bring it back
+The error is not *using* embeddings. It is **applying one instrument to two different kinds
+of data**.
 
-I would delete vector search from this design. What replaces it:
+### The fix — route by the kind of data, not by the kind of question
 
-- **Structured queries** through a small set of vetted, parameterised tools.
-- **`pg_trgm`**, a standard PostgreSQL extension, for fuzzy matching on names and addresses —
-  so *"the Riverside Oaks property"* still resolves when the user misremembers the exact name.
-  This handles the genuine fuzzy-matching need without embeddings, at no cost.
+| Data | Path | Rule |
+|---|---|---|
+| Structured fields — price, bedrooms, ZIP, status, dates | **Exact SQL** through vetted, parameterised tools | Never embedded. Vectorising a price destroys the precision the client is paying for. |
+| Documents — HOA rules, seller disclosures, inspection reports | **Vector search over chunked text** | Embedded **once when the document arrives**, never per query. |
+| Names and addresses the user half-remembers | **`pg_trgm`**, a standard PostgreSQL extension | Fuzzy matching without embeddings, at no cost. |
 
-**And here is the condition under which I would reverse this**, stated up front so the
-decision is auditable rather than dogmatic:
+Both live in the same PostgreSQL database, which is what makes the third case work — the
+interesting one.
 
-| If the real export contains… | Then |
-|---|---|
-| Only structured fields *(my assumption)* | No embeddings. Relational queries plus `pg_trgm`. |
-| Substantial free text — `PublicRemarks`, `PrivateRemarks`, agent notes | Add `pgvector` **into the same database**: one extension, one column, one index. Embeddings computed **once when a record changes**, never per query. |
-| Attached documents — disclosures, inspection reports | A document extraction and chunking pipeline; and re-examine the database choice past roughly 10 million chunks. |
+### The questions that need both halves
 
-The middle row is likely in a real engagement. The **RESO Data Dictionary** — the industry
-standard defining MLS fields — includes `PublicRemarks` and `PrivateRemarks`, the descriptive
-text agents write. A genuine MLS feed probably carries them.
+This is where the split earns its keep. A broker asks:
 
-> **This is the real reason I chose PostgreSQL, and it is a stronger reason than any
-> benchmark: it lets us not decide yet.**
+> *"Three-bed condos under $500,000 in Austin **that allow short-term rentals**"*
+
+Decompose it. `three-bed`, `under $500,000`, `Austin`, `condo` are exact comparisons — SQL.
+But *"allows short-term rentals"* is buried in the prose of the building's rules, phrased by
+a lawyer, and never as a checkbox:
+
+> *"Leases of fewer than 30 days are prohibited, except for units acquired prior to 2019,
+> which may be let up to twice annually subject to Board approval."*
+
+**Neither path answers this alone.** Vector search gets the price wrong; SQL cannot read the
+paragraph. The answer is a **hybrid query**: filter exactly first, then rank semantically
+within the filtered set — one round trip, because the vectors and the columns are in the same
+database.
+
+Two more of the same shape, both real questions a brokerage asks weekly:
+
+- *"Which of my listings sitting over 90 days have disclosed foundation issues?"* — the
+  structured half tells you which are stale; the documents tell you **why**.
+- *"Which active pre-1978 listings are missing a signed lead-paint disclosure?"* — a federal
+  requirement with real penalties. Note this one asks about a document that **is not there**,
+  and similarity search has no concept of absence. Another reason the structured half cannot
+  be dispensed with.
+
+### "Why not just make these columns?"
+
+The sharpest objection to all of this, and it deserves a straight answer: if *"allows
+short-term rentals"* matters, why not extract it once and store it as a field?
+
+For high-frequency, stably-defined facts, **you should** — and a mature version of this
+system would. But three things stop it from being the whole answer:
+
+**Nobody has done the extraction.** The MLS schema is set by the regional association, not by
+the brokerage; you cannot add columns to someone else's system. The rules document is a PDF
+somebody uploaded. The fact exists in prose because no one was ever paid to type it into a
+form.
+
+**You can only structure what you anticipated.** Every new question — *is there pending
+litigation? is the roof under warranty? is there a rental cap?* — becomes a schema change and
+a backfill. The tail is endless.
+
+**Conditional prose does not survive a boolean.** Look again at that rules clause. What is
+the value of `allows_short_term_rental`? Every possible answer is wrong, and the nuance
+destroyed is exactly the nuance the agent needs to advise a client.
+
+And there is a fourth reason that matters legally: an agent advising a buyer must be able to
+**point at the paragraph**. *"The system said yes"* is not a defence in a dispute. *"Section
+8.3 of the rules, here is the text"* is. A vector search returns the passage; a column
+returns `true`.
+
+For completeness: the RESO standard does define fields like `PetsAllowed` and
+`LeaseConsideredYN`. They exist, they are agent-entered, and they are widely unreliable — no
+brokerage relies on them for anything consequential. They open the PDF. That is an
+architectural fact, not a complaint.
+
+> **And this is the real reason I chose PostgreSQL, stronger than any benchmark: the two
+> halves live together.**
 >
-> If descriptive text turns out to be present, adding vector search is an extension and a
-> column — a day's work, no migration. If it never appears, we never paid for a specialised
-> database we did not need. A dedicated vector database forces that decision *now*, on a
-> dataset that may never justify it.
+> `pgvector` is an extension, not a separate system. Filters and vectors sit in one table, so
+> a hybrid query is one statement and one round trip. A dedicated vector database forces you
+> to either over-fetch and filter afterwards, or filter and hope — and the residency rule
+> rules out hosted vector databases anyway, since the records would leave the client's
+> account.
 >
-> Choosing PostgreSQL is not choosing vectors. It is **buying the option to have vectors, for
-> free.** That is a far more defensible position than "everyone uses Pinecone" — and the
-> residency rule rules out hosted vector databases regardless, since the records would leave
-> the client's account.
+> One caveat worth stating because it is the failure mode people meet in production: filtered
+> vector search silently returns incomplete results unless `pgvector` 0.8's `iterative_scan`
+> is enabled. Left at the default, a filtered query can return a small fraction of the
+> matches with no error and no warning. It is a one-line setting and it is not optional.
 
 ---
 
@@ -305,8 +356,8 @@ Every user question triggers the regeneration of embeddings for the entire datas
 ### Why this fails
 
 Purely arithmetically: 3 million records at roughly 150 words of text each is about 450
-million units of text to process. At Amazon's current embedding price (\$0.02 per million),
-that is **approximately \$9 for a single user question.**
+million units of text to process. At Amazon's current embedding price ($0.02 per million),
+that is **approximately $9 for a single user question.**
 
 Ten questions would exhaust a month of most small-business infrastructure budgets. The
 processing time would be measured in hours, not the few seconds required.
@@ -321,18 +372,45 @@ store, nothing can persist.
 
 This is why I framed Problems 1, 2 and 3 as one root cause rather than three findings.
 
-### The fix
+### The fix — embeddings belong to the document, not to the question
 
-Two things resolve it, and neither is a caching optimisation:
+The principle is one sentence: **an embedding is a property of the text, so it is computed
+when the text arrives, not when someone asks about it.**
 
-1. **Embeddings are a property of the record, not of the question.** They are computed once,
-   when a record changes, and stored beside it. Only the *user's question* is converted at
-   query time — a single operation taking milliseconds and costing a fraction of a cent.
-2. **In this design, they are not computed at all**, because Section 3.3 removed them.
+Concretely:
 
-So the honest answer to this item is: *the fix is not to cache the embeddings. It is to
-delete them.* And that reframes the cost figure — **the draft was not overspending on a
-poorly built feature. It was spending \$9 a query on a feature that should not exist.**
+1. **At ingest, once.** When a document lands, it is split into passages, each passage is
+   embedded, and the vectors are stored beside it. This happens on the nightly pipeline,
+   off the request path entirely.
+2. **On subsequent nights, only the delta.** The same change-detection that governs the
+   listings governs the documents: a document whose content digest is unchanged is not
+   re-read, not re-chunked, and not re-embedded. Nightly work is proportional to what changed,
+   not to what exists.
+3. **At query time, one embedding.** The *user's question* is converted — a single operation,
+   a few milliseconds, a fraction of a cent. Nothing else.
+4. **Never for structured fields**, per Section 3.3. Those are compared, not embedded.
+
+The difference this makes, at the brief's stated volume:
+
+| | Draft | Revised |
+|---|---|---|
+| First load | — | **~$3, once** |
+| Each night after | — | **cents** (only changed documents) |
+| **Per user question** | **~$9** | **~$0.000004** (one short question) |
+
+The $9 does not become $2 through better engineering. It becomes **effectively zero**,
+because the work was never supposed to happen at query time at all.
+
+### Why the draft could not have done otherwise
+
+Worth naming, because it is not carelessness: **the draft has nowhere to put an embedding.**
+There is a file in S3 and the temporary memory of a Lambda that vanishes when the request
+ends. No database, no persistence, nothing that outlives a single call.
+
+So the recomputation is *forced* by the missing boundary from Problem 1. With no persistent
+store, nothing can persist. Fix the boundary and this problem largely dissolves on its own —
+which is why Problems 1, 2 and 3 are one root cause with three symptoms rather than three
+independent findings.
 
 ---
 
@@ -545,12 +623,14 @@ writing in week one, because the answer changes which models are available.
 flowchart TB
   subgraph legacy["Legacy MLS — unchanged"]
     L["Nightly CSV export"]
+    D["Listing documents<br/>HOA rules, disclosures"]
   end
 
   subgraph aws["Client AWS account · one region · no internet egress"]
     S3[("S3 landing<br/>versioned history")]
     ING["Ingest Lambda<br/>compare → update changes only<br/>circuit breaker"]
-    DB[("Aurora Serverless PostgreSQL<br/>indexed · Row-Level Security")]
+    EMB["Embed changed documents<br/>Bedrock · once, not per query"]
+    DB[("Aurora Serverless PostgreSQL<br/>columns + pgvector · Row-Level Security")]
     MCP["MCP adapter<br/>no database permissions"]
     DOM["Domain service<br/>vetted, typed tools"]
     AG["Agent client<br/>Bedrock · in-account"]
@@ -558,7 +638,9 @@ flowchart TB
   end
 
   L -->|"overnight"| S3
+  D -->|"overnight"| S3
   S3 --> ING --> DB
+  ING -->|"changed documents only"| EMB --> DB
   AG -->|"MCP over HTTPS"| MCP
   COG -.->|"verified identity"| MCP
   MCP --> DOM --> DB
@@ -573,8 +655,9 @@ flowchart TB
 | Draft | Revised | Why |
 |---|---|---|
 | The file *is* the database | Nightly pipeline: land → compare → update | Restores the missing boundary |
-| Vector search over structured rows | **Removed.** Vetted parameterised queries | Precision; wrong instrument for the data |
-| Re-embed everything per query | No embeddings at all | ~\$9/query → \$0 |
+| Everything embedded, structured fields included | **Routed by data type.** Columns queried exactly; documents embedded | Precision where precision is required |
+| Re-embed the corpus per query | Embed each document **once, at ingest**; only the question at query time | ~$9/query → effectively zero |
+| No way to search document content | Chunked, embedded, citable — with hybrid filter-then-rank | Answers a class of question the columns cannot |
 | In-memory scan of the whole file | Indexed database queries | 40 s → 20–100 ms |
 | Authentication "later" | Identity → token → row-level security, day one | Authorisation is a data-layer property |
 | One function holds everything | Internal boundary; thin protocol adapter | Reuse, testability, blast radius |
@@ -608,7 +691,7 @@ architecture*, not in a document somebody is supposed to read.
 - **Cached answers valid until the next nightly load.** Data changes once a day, so a
   24-hour cache is not reckless here — it is *provably correct*. The constraint everyone
   reads as a limitation turns out to be the strongest cost lever in the design.
-- **No NAT Gateway.** Using private AWS network endpoints instead saves roughly \$32 a month
+- **No NAT Gateway.** Using private AWS network endpoints instead saves roughly $32 a month
   *and* means traffic never touches the public internet — which is itself the residency
   argument, made structural.
 - Cost-allocation tags, so spend can be attributed per client office
@@ -638,23 +721,26 @@ architecture*, not in a document somebody is supposed to read.
 
 | Component | Monthly |
 |---|---|
-| Aurora Serverless PostgreSQL (0.5–2 capacity units) | ~\$45–150 |
-| S3 storage (~5 GB plus history) | <\$5 |
-| Lambda (adapter, domain service, nightly ingest) | ~\$10–30 |
-| Embeddings | **\$0** — removed |
-| NAT Gateway | **\$0** — private endpoints only |
-| **Infrastructure floor** | **~\$60–185** |
+| Aurora Serverless PostgreSQL (0.5–2 capacity units) | ~$45–150 |
+| S3 storage (~5 GB plus history) | <$5 |
+| Lambda (adapter, domain service, nightly ingest) | ~$10–30 |
+| Embeddings — nightly, changed documents only | **~$1–5** |
+| NAT Gateway | **$0** — private endpoints only |
+| **Infrastructure floor** | **~$60–190** |
 | AI model inference | The dominant variable; scales with usage and model choice |
+
+Plus a **one-time ~$3** to embed the existing document corpus. Once.
 
 | Where a query's time goes | |
 |---|---|
 | Request and authentication | ~50 ms |
-| Indexed database query over 3M rows | ~20–100 ms |
+| Embedding the question | ~50 ms |
+| Indexed or hybrid database query over 3M rows | ~20–150 ms |
 | **AI model generating the reply** | **1–3 s** |
 
-**The comparison that matters:** the draft spends roughly **\$9 per query on embeddings
+**The comparison that matters:** the draft spends roughly **$9 per query on embeddings
 alone** — approximately the *monthly* infrastructure cost of the revised design, consumed by
-a single question. Plus about **\$210 a month** re-reading an unchanged file.
+a single question. Plus about **$210 a month** re-reading an unchanged file.
 
 **And a note on where to optimise:** once the data layer is fixed, the AI model accounts for
 80–90% of response time. Everything else is noise. That is worth knowing before anyone
@@ -738,19 +824,23 @@ set of questions, and honest about what it does not know** — not a broad one.
 
 The draft is not the work of someone careless. It gets the ingredients right — nightly export
 to S3, serverless compute, MCP as the interface — and its instincts about the shape of the
-problem are sound. What it lacks is a boundary in one place and a question in another.
+problem are sound. What it lacks is a boundary in one place and a distinction in another.
 
 **The boundary** is between receiving data and serving it. Adding it resolves most of the
 listed problems at once: the memory ceiling, the erratic latency, the recomputation, and the
 majority of the cost. The nightly export stays exactly as it is; it simply stops pretending
 to be a database.
 
-**The question** is whether this system needs vector search at all. My reading of the brief
-says it does not, because the data is a table of facts rather than a body of prose — and
-applying similarity search to exact facts trades away the precision the client is paying for.
-That is the boldest recommendation here and the one I would defend hardest, which is why
-Section 3.3 states the exact condition that would reverse it. The database choice keeps that reversal
-free.
+**The distinction** is between the two kinds of data in this system. The draft treats them as
+one and reaches for a single instrument. But a price is a fact to be compared, and a
+building's rules are prose to be understood — and no single retrieval strategy serves both.
+Embedding a price destroys the precision the client is paying for; querying a legal clause
+with a `WHERE` returns nothing at all.
+
+So the answer is not less vector search or more of it. It is **routing**: columns queried
+exactly, documents searched semantically, both in one database so a single question can use
+both. That is the recommendation I would defend hardest, and Section 3.3 sets out the rule
+and the reasoning behind it.
 
 Two further findings were not in the original list. The system as specified **cannot act on
 anything**, though the brief asks for action. And the residency requirement is **violated on
