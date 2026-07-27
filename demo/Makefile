@@ -1,4 +1,4 @@
-.PHONY: help install up down psql test lint fmt synth diff deploy destroy
+.PHONY: help install data dumps up down psql test lint fmt synth diff deploy destroy
 .DEFAULT_GOAL := help
 
 DB_URL ?= postgresql://mls:mls@localhost:5433/mls
@@ -10,6 +10,14 @@ help:  ## Show this help
 install:  ## Install Python and CDK dependencies
 	uv sync
 	cd infra && npm install
+
+data: data/realtor-raw.csv  ## Download the raw dataset (~170MB)
+data/realtor-raw.csv:
+	@mkdir -p data
+	curl -sL -o $@ "https://huggingface.co/datasets/jason1966/ahmedshahriarsakib_usa-real-estate-dataset/resolve/main/realtor-data.zip.csv"
+
+dumps: data  ## Generate two consecutive nightly exports (~2min, 470MB)
+	uv run python scripts/make_dumps.py
 
 up:  ## Start local Postgres
 	docker compose up -d --wait

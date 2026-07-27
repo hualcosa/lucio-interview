@@ -59,9 +59,7 @@ alternative in case I am wrong.
 
 **Assumption 1 — The nightly export is a CSV of structured records.**
 
-The evidence is in the wording: *"a full **data dump**"*, *"~3 million **records**"*,
-*"searches it **in memory**"*. "Records" is the decisive word — nobody refers to a PDF as a
-record, and "searching in memory" only makes sense over rows you can iterate.
+
 
 **Assumption 2 — Therefore the data has no substantial free text.** Prices, bedroom counts,
 addresses, statuses, dates. Facts in columns, not prose.
@@ -74,9 +72,6 @@ which I would reverse the decision.
 3–6 GB nightly file), 0.5–2% of records changing each night, and roughly 1,000 queries a day
 for costing purposes.
 
-> **This is the first question I would put to the client, before writing any code.** Not
-> because the answer is hard to get — it takes one email and one sample file — but because
-> everything else depends on it.
 
 ---
 
