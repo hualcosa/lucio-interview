@@ -34,6 +34,20 @@ PostgreSQL — and carries the caller's verified identity all the way down to ro
 
 > **Natural language is the interface. It is not the execution engine.**
 
+## The revised architecture
+
+![The revised architecture: the legacy MLS exports nightly to S3; an ingest Lambda compares
+against the previous export and updates only what changed; changed documents are embedded once
+via Bedrock; questions arrive over MCP, carry a verified identity, and are answered by an
+indexed Aurora Serverless PostgreSQL holding both columns and vectors under row-level
+security. Everything after the export sits in the client's AWS account, in one region, with no
+internet egress.](assets/architecture.png)
+
+The nightly export stays exactly as it is — it simply stops pretending to be a database. The
+MCP adapter is separate from the domain service and holds no database permissions of its own,
+so a fault in the protocol layer cannot reach the data. Section 4 of the review walks the whole
+path and prices it.
+
 ## The numbers are measured, not asserted
 
 Both designs were implemented and run against 2.2 million real listing records.
