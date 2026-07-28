@@ -43,8 +43,12 @@ FAINT = RGBColor(0x5A, 0x60, 0x68)
 ACCENT = RGBColor(0xE0, 0xA9, 0x4A)
 BAD = RGBColor(0xC0, 0x56, 0x3E)
 
-SANS = "Lato"
-MONO = "Fira Code"
+# Arial, not something prettier: PowerPoint on another machine will not have a
+# designer font, and the substitute it picks is wider — which silently rewraps
+# headlines and clips the last line. Arial is present on Windows and macOS, and
+# Liberation Sans is metric-identical on Linux, so the layout is what was tested.
+SANS = "Arial"
+MONO = "Consolas"
 
 # RESPONSE.md's diagrams are painted for a white page; on this ground the green
 # subgraph in particular reads as a slab. Darken the fills, keep the strokes so
@@ -83,10 +87,16 @@ def textbox(slide, x, y, w, h, *, anchor=MSO_ANCHOR.TOP):
 def write(frame, spans, *, size, color=INK, bold=False, font=SANS,
           spacing=1.15, space_after=0, align=PP_ALIGN.LEFT, first=False):
     """Append a paragraph. `spans` is a string, or (text, {overrides}) tuples."""
+    from pptx.oxml.ns import qn  # noqa: PLC0415
+
     para = frame.paragraphs[0] if first else frame.add_paragraph()
     para.alignment = align
     para.line_spacing = spacing
     para.space_after = Pt(space_after)
+    # PowerPoint inherits a bullet from the placeholder list style and renders
+    # one on every paragraph; LibreOffice does not. Turn it off explicitly.
+    props = para._p.get_or_add_pPr()
+    props.append(props.makeelement(qn("a:buNone"), {}))
     for span in [spans] if isinstance(spans, str) else spans:
         text, over = (span, {}) if isinstance(span, str) else span
         run = para.add_run()
@@ -98,11 +108,22 @@ def write(frame, spans, *, size, color=INK, bold=False, font=SANS,
     return para
 
 
+def bar(slide, x, y, w, h, color):
+    """A filled rectangle. Connectors would be the obvious choice for a rule,
+    but PowerPoint gives them an arrowhead by default — LibreOffice does not,
+    so the arrows were invisible until the deck was opened in Office."""
+    from pptx.enum.shapes import MSO_SHAPE  # noqa: PLC0415
+
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, w, h)
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = color
+    shape.line.fill.background()
+    shape.shadow.inherit = False
+    return shape
+
+
 def rule(slide, y, *, width=Inches(1.1), color=ACCENT, thickness=Pt(2.5)):
-    line = slide.shapes.add_connector(1, MARGIN, y, MARGIN + width, y)
-    line.line.color.rgb = color
-    line.line.width = thickness
-    return line
+    return bar(slide, MARGIN, y, width, thickness, color)
 
 
 def slide_base(deck, *, number=None, eyebrow=None, footer=True):
@@ -128,8 +149,10 @@ def slide_base(deck, *, number=None, eyebrow=None, footer=True):
 
 
 def headline(slide, text, *, size=38, y=HEAD_Y, ruled=True):
+    # Half a line of slack per line: if a font substitution rewraps a headline,
+    # it grows into the gap instead of being clipped at the box edge.
     lines = text.count("\n") + 1
-    height = Inches(0.62 * lines * size / 38)
+    height = Inches(0.62 * (lines + 0.5) * size / 38)
     frame = textbox(slide, MARGIN, y, COL, height)
     for i, line in enumerate(text.split("\n")):
         write(frame, line, size=size, bold=True, spacing=1.06, first=(i == 0))
@@ -143,55 +166,34 @@ def notes(slide, seconds, script):
     slide.notes_slide.notes_text_frame.text = f"[~{seconds}s]\n\n{script.strip()}"
 
 
-def strip_borders(cell):
-    """PowerPoint tables ship with a visible grid. Nothing here wants one."""
-    from pptx.oxml.ns import qn  # noqa: PLC0415
-
-    props = cell._tc.get_or_add_tcPr()
-    for edge in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
-        line = props.makeelement(qn(edge), {"w": "0"})
-        line.append(props.makeelement(qn("a:noFill"), {}))
-        props.append(line)
-
-
 def table(slide, y, rows, widths, *, size=15, header=True, height=Inches(0.44)):
-    """Rows of plain strings. First row is the header when `header`."""
-    total = sum(widths)
-    shape = slide.shapes.add_table(len(rows), len(widths), MARGIN, y,
-                                   Emu(int(total)), height * len(rows))
-    tbl = shape.table
-    tbl.first_row = False
-    tbl.horz_banding = False
-    for i, width in enumerate(widths):
-        tbl.columns[i].width = Emu(int(width))
+    """A grid of text boxes, not a PowerPoint table.
 
+    A real table carries a table *style*, and the default style paints the whole
+    graphic frame white with a visible grid. Clearing cell fills and borders is
+    not enough — the style also holds the frame at its declared height, so any
+    slack below the last row renders as a white slab. Text boxes have no style
+    to fight, and lay out identically.
+    """
     for r, row in enumerate(rows):
-        tbl.rows[r].height = height
+        is_head = header and r == 0
+        x = MARGIN
         for c, text in enumerate(row):
-            cell = tbl.cell(r, c)
-            cell.fill.background()
-            strip_borders(cell)
-            cell.vertical_anchor = MSO_ANCHOR.MIDDLE
-            cell.margin_left = Inches(0)
-            cell.margin_right = Inches(0.2)
-            cell.margin_top = cell.margin_bottom = Inches(0.05)
-            frame = cell.text_frame
-            frame.word_wrap = True
-            is_head = header and r == 0
+            frame = textbox(slide, x, y + height * r, widths[c] - Inches(0.2),
+                            height, anchor=MSO_ANCHOR.MIDDLE)
             write(frame, text, size=12 if is_head else size,
                   color=ACCENT if is_head else (INK if c == 0 else MUTED),
                   bold=is_head, spacing=1.12, first=True)
-
-    if header:
-        rule(slide, y + height, width=Emu(int(total)), color=FAINT, thickness=Pt(0.75))
+            x += widths[c]
+        if is_head:
+            bar(slide, MARGIN, y + height - Inches(0.06), Emu(int(sum(widths))),
+                Pt(0.75), FAINT)
     return y + height * len(rows)
 
 
 def callout(slide, y, text, *, size=17, color=INK, height=Inches(0.95)):
     """An indented pull-quote with an accent bar down its left edge."""
-    bar = slide.shapes.add_connector(1, MARGIN, y, MARGIN, y + height)
-    bar.line.color.rgb = ACCENT
-    bar.line.width = Pt(2.5)
+    bar(slide, MARGIN, y, Pt(2.5), height, ACCENT)
     frame = textbox(slide, MARGIN + Inches(0.28), y, COL - Inches(0.28), height,
                     anchor=MSO_ANCHOR.MIDDLE)
     for i, line in enumerate(text.split("\n")):
@@ -295,9 +297,9 @@ nobody drew. Most of these five minutes go to the three decisions I'd defend har
         ["Conversational latency", "A few seconds, end to end."],
     ], [Inches(4.0), Inches(7.53)], size=14, height=Inches(0.46))
     callout(s, y + Inches(0.26),
-            "The brief never says what format the export is. I read it as a CSV of structured records —\n"
-            "nobody calls a PDF a record. It is the load-bearing assumption, and the first question I\n"
-            "would ask the client.", size=14, color=MUTED, height=Inches(0.95))
+            "The brief never says what format the export is. I read it as a CSV of structured "
+            "records — the load-bearing assumption, and the first question I would ask the client.",
+            size=15, color=MUTED, height=Inches(0.8))
     notes(s, 27, """
 The data lives in an MLS — the cooperative listing database US brokerages run, often
 decades old, and the only way out is a nightly file. Five constraints; the underestimated
@@ -357,6 +359,12 @@ the client does.
     # in a dark deck reads as a deliberate exhibit rather than a pasted image.
     s = slide_base(deck, number=4, footer=False)
     s.shapes.add_picture(str(ARCHITECTURE), 0, 0, width=W, height=H)
+    # The diagram's top-left corner is empty white, so the title sits on the
+    # image rather than costing it height.
+    frame = textbox(s, Inches(0.5), Inches(0.32), Inches(5.5), Inches(0.6))
+    write(frame, "Revised architecture", size=26, bold=True,
+          color=RGBColor(0x1A, 0x1D, 0x21), spacing=1.0, first=True)
+    bar(s, Inches(0.5), Inches(0.92), Inches(1.1), Pt(2.5), ACCENT)
     notes(s, 28, """
 The nightly export stays exactly as it is. It just stops pretending to be a database.
 
@@ -375,14 +383,15 @@ with no database permissions of its own, and there's no internet egress at all.
         ["HOA rules, disclosures, reports", "Vector search over chunks", "Embedded once, at ingest"],
         ["Half-remembered names, addresses", "pg_trgm", "Fuzzy, free, explainable"],
     ], [Inches(4.1), Inches(3.9), Inches(3.53)], size=15, height=Inches(0.55))
-    callout(s, y + Inches(0.28),
+    y = callout(s, y + Inches(0.28),
             "Ask for listings under $500,000 and a vector search will hand you a $530,000 property.\n"
             "It is not broken — it is doing exactly what it was built to do. It is the wrong instrument.",
             size=16, height=Inches(0.95))
-    frame = textbox(s, MARGIN, Inches(6.05), COL, Inches(0.6))
-    write(frame, "Both live in one PostgreSQL, so a single question can use both halves — "
-                 "filter exactly first, then rank semantically inside the filtered set.",
-          size=14, color=MUTED, spacing=1.3, first=True)
+    # Flows from the callout rather than a fixed y: a wider font substitution
+    # rewraps the callout, and a hard coordinate would be overrun by it.
+    frame = textbox(s, MARGIN, y + Inches(0.18), COL, Inches(0.4))
+    write(frame, "Both live in one PostgreSQL — filter exactly first, then rank semantically "
+                 "inside the filtered set.", size=14, color=MUTED, spacing=1.3, first=True)
     notes(s, 45, """
 First decision, and the one most likely to be challenged: the answer is not less vector
 search or more of it. It's routing.
@@ -407,7 +416,7 @@ Both live in one Postgres because real questions need both halves in one round t
     frame = textbox(s, MARGIN, y + Inches(1.5), COL, Inches(0.5))
     write(frame, "search_listings(bedrooms=3, max_price=500000, min_days_on_market=90)",
           size=17, color=ACCENT, font=MONO, spacing=1.2, first=True)
-    callout(s, y + Inches(2.25),
+    callout(s, y + Inches(2.05),
             "The model chooses a pre-approved question and fills in its parameters.\n"
             "It does not write the WHERE clause — a model that writes its own filter can omit\n"
             "the one restricting results to the user's own office.", size=16, height=Inches(1.2))
@@ -449,7 +458,7 @@ choose whose data to ask about.
 
     # 9 ----------------------------------------------------------- measured
     s = slide_base(deck, number=8, eyebrow="Measured")
-    y = headline(s, "Both designs built and measured on 2.2M real records", size=32)
+    y = headline(s, "Both designs, measured on 2.2M real records", size=32)
     y = table(s, y, [
         ["Records", "Draft — data layer", "Revised — data layer"],
         ["100,000", "610 ms  ·  $0.30 / query", "33 ms"],
@@ -463,7 +472,7 @@ choose whose data to ask about.
                 "it is not looking at. At 3M records the draft extrapolates to roughly 16 seconds and\n"
                 "$9 a question — the revised design's entire monthly floor, spent on one question.",
                 size=15, height=Inches(1.15))
-    frame = textbox(s, MARGIN, y + Inches(0.3), COL, Inches(0.5))
+    frame = textbox(s, MARGIN, y + Inches(0.18), COL, Inches(0.4))
     write(frame, "Retrieval only — the model adds 1–3 s to both. Which is the point: the database "
                  "is no longer what you wait for.", size=14, color=MUTED, spacing=1.3, first=True)
     notes(s, 33, """
