@@ -455,38 +455,6 @@ nearly free. A runtime boundary buys least privilege, and it is the only way to 
 
 ---
 
-## 3.7 Problem 6 — No write path, and no handling of stale data
-
-Two omissions, neither mentioned in the draft.
-
-### The system cannot act, only answer
-
-The brief asks for an agent that can *query and **act on*** the data. The draft only returns
-search results, and the legacy system is read-only batch. So where do actions go?
-
-**The fix** splits actions in two:
-
-- **Actions that live entirely in the new system** — flag a listing, create a follow-up task,
-  draft outreach. Full read-write, immediate, no dependency on the legacy system.
-- **Actions that must reach the legacy system** — written to an *outbox*, a queue of pending
-  changes dispatched during the batch write-back window, with status visible to the user
-  rather than silently pending.
-
-And a rule: **consequential actions return "pending approval," not "done."** An agent that
-autonomously modifies the system of record is not a feature in this industry — it is an audit
-finding. A human confirms; the agent prepares.
-
-### The system will state stale facts confidently
-
-Data is up to 24 hours old and nothing in the draft surfaces that, so the agent will report
-yesterday's price as today's in the same confident tone it uses for everything else.
-
-**The fix** is cheap and disproportionately valuable: every tool response carries an `as_of`
-timestamp, and the agent states data currency when it matters. *"As of last night's 2 a.m.
-sync"* costs one clause and buys a calibrated sense of when to double-check.
-
----
-
 # 4. The revised architecture
 
 ## 4.1 The whole picture
@@ -581,6 +549,25 @@ moment, and the server-side diagram would still look immaculate. **The agent cli
 in-account too** — which is why it appears inside the box above. Worth saying explicitly,
 because it is the shortcut somebody proposes in the third meeting.
 
+### Where writes go
+
+The brief asks for an agent that can *query and **act on*** the data, and the legacy MLS is
+read-only batch. The new database is what makes acting possible: **Aurora is the system of
+record for what the brokerage does** — a listing flagged, a viewing scheduled, a follow-up
+task, an offer noted — while the nightly export remains the system of record for what the MLS
+publishes.
+
+That split has to be enforced rather than assumed, and this is the part that is easy to get
+wrong. If a broker marks a listing sold tonight and tomorrow's export still says active, a
+naive upsert quietly overwrites the local truth. So **the ingest job writes only MLS-owned
+columns**; locally-owned columns and tables are never touched by the pipeline. Where a change
+genuinely has to reach the MLS, it goes to an outbox — a queue of pending changes dispatched
+during the write-back window, with status visible to the user rather than silently pending.
+
+And a rule: **consequential actions return "pending approval," not "done."** An agent that
+autonomously modifies the system of record is not a feature in this industry — it is an audit
+finding. A human confirms; the agent prepares.
+
 ## 4.2 What stays and what changes
 
 | Draft | Revised | Why |
@@ -640,6 +627,10 @@ architecture*, not in a document somebody is supposed to read.
 
 **Operational — the one I would draw attention to**
 
+- **`as_of` on every response.** Data is up to 24 hours old, and nothing in the draft surfaces
+  that, so the agent would report yesterday's price as today's in the same confident tone it
+  uses for everything else. One clause — *"as of last night's 2 a.m. sync"* — costs nothing and
+  buys a calibrated sense of when to double-check.
 - **An ingest circuit breaker.** If tonight's export differs from last night's by more than a
   set percentage, the pipeline **stops and raises an alarm** instead of processing it.
 
@@ -764,9 +755,11 @@ the answer is not less vector search or more of it. It is **routing**: columns q
 documents searched semantically, both in one database so a single question can use both. That
 is the recommendation I would defend hardest.
 
-One further finding was not in the original list, and it is an omission rather than a mistake:
-the system as specified **cannot act on anything**, though the brief asks for action. That
-needs a path, and a human at the end of it.
+The brief also asks the agent to **act**, not only answer, and the new database is what makes
+that possible: it owns what the brokerage does, while the nightly export keeps owning what the
+MLS publishes. Getting that boundary right is the work — an ingest job that overwrites a
+broker's own edits is worse than one that never ran — and a human sits at the end of anything
+consequential.
 
 The thing to take from this is not a list of corrections but a way of deciding:
 

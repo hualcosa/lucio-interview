@@ -328,14 +328,13 @@ nothing converts one into the other. So every question pays that conversion agai
 
     # 4 ----------------------------------------------------------- problems
     s = slide_base(deck, number=3, eyebrow="What's wrong")
-    y = headline(s, "Six problems. Four are that same mistake.", size=34)
+    y = headline(s, "Five problems. Four are that same mistake.", size=34)
     items = [
         ("The export file is used as the database", "12 seconds and $6.67 per query at 2.2M records", False),
-        ("Everything is embedded, indiscriminately", "a price is a fact to compare, not a passage to match", False),
+        ("Everything is embedded, indiscriminately", "a price is a fact to compare, not a passage to match", True),
         ("Embeddings recomputed on every query", "~$9 a question for work already done last night", False),
         ("No authentication layer", "an open exfiltration endpoint over 3M confidential records", False),
         ("MCP server and business logic in one function", "one Lambda, one execution role, no seam", False),
-        ("No write path, and no freshness signal", "the brief asks the agent to act; it cannot", True),
     ]
     for label, detail, extra in items:
         frame = textbox(s, MARGIN, y, COL, Inches(0.44))
@@ -347,10 +346,9 @@ nothing converts one into the other. So every question pays that conversion agai
         ], size=17, spacing=1.0, first=True)
         y += Inches(0.52)
     notes(s, 22, """
-Six problems, graded by severity, and four collapse into that diagnosis. Two were not on
-the list I was given: there's no write path at all, though the brief asks the agent to
-act, and residency is violated on the client side — the MCP server never calls a model,
-the client does.
+Five problems, graded by severity, and four of them collapse into that diagnosis. The
+second one was not on the list I was given, and it is the one I would spend the most time
+on — it is not an efficiency bug, it is the wrong instrument applied to the wrong data.
 """)
 
     # 5 ------------------------------------------------------- architecture
