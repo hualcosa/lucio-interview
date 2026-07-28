@@ -1,4 +1,4 @@
-.PHONY: help install data dumps docs up down psql test lint fmt bench eval serve synth diff deploy destroy
+.PHONY: help install data dumps docs up down psql test lint fmt bench eval serve pdf synth diff deploy destroy
 .DEFAULT_GOAL := help
 
 DB_URL ?= postgresql://mls:mls@localhost:5433/mls
@@ -64,3 +64,6 @@ docs:  ## Generate and ingest HOA documents (calls Bedrock)
 
 serve:  ## Run the demo UI on http://localhost:8000
 	uv run python -m mls_agent.demo_server
+
+pdf:  ## Build ../RESPONSE.pdf (pre-renders Mermaid, needs pandoc + mermaid-cli)
+	cd .. && ./scripts/build_pdf.sh RESPONSE.md
