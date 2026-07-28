@@ -2,8 +2,9 @@
 """Build PRESENTATION.pptx — the ten-slide deck for the 3-5 minute recording.
 
 Ten slides, one accent colour, one grid. Every claim on a slide already appears in
-RESPONSE.md; the diagrams are extracted from that file's Mermaid fences rather than
-duplicated here, so the deck cannot drift from the document.
+RESPONSE.md; the small diagrams are extracted from that file's Mermaid fences rather
+than duplicated here, so the deck cannot drift from the document. The architecture
+slide is the exception — it uses assets/architecture.png, drawn separately.
 
     uv run --with python-pptx scripts/build_deck.py
 
@@ -30,6 +31,7 @@ from pptx.util import Emu, Inches, Pt
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "RESPONSE.md"
+ARCHITECTURE = ROOT / "assets" / "architecture.png"
 OUT = ROOT / "PRESENTATION.pptx"
 
 # --------------------------------------------------------------------------- design
@@ -350,11 +352,11 @@ the client does.
 """)
 
     # 5 ------------------------------------------------------- architecture
-    # The architecture diagram is nearly square, so a headline above it costs
-    # width as well as height. The eyebrow carries the title instead.
-    s = slide_base(deck, number=4, eyebrow="The fix  ·  the revised architecture")
-    rule(s, Inches(1.02))
-    picture(s, diagrams[3], Inches(1.28), max_h=Inches(5.35))
+    # Full bleed, no chrome. ARCHITECTURE is 1672x941 — within a thousandth of
+    # 16:9, so it lands edge to edge with no letterboxing, and one white slide
+    # in a dark deck reads as a deliberate exhibit rather than a pasted image.
+    s = slide_base(deck, number=4, footer=False)
+    s.shapes.add_picture(str(ARCHITECTURE), 0, 0, width=W, height=H)
     notes(s, 28, """
 The nightly export stays exactly as it is. It just stops pretending to be a database.
 
