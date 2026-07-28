@@ -70,6 +70,18 @@ def _rows(cur) -> list[dict[str, Any]]:
     return [dict(zip(cols, r, strict=True)) for r in cur.fetchall()]
 
 
+def _executed_sql(cur) -> str:
+    """The query as the database actually received it, parameters bound.
+
+    Shown verbatim in the demo's trace panel. Making the generated SQL visible
+    is the point: the model chose a tool, not a query, and anyone can check.
+    """
+    try:
+        return " ".join((cur.query or b"").decode().split())
+    except Exception:  # noqa: BLE001 - tracing must never break a request
+        return ""
+
+
 def search_listings(
     auth: AuthContext,
     *,
@@ -130,11 +142,17 @@ def search_listings(
 
     with app_conn(auth.brokerage_id) as conn:
         conn.execute(f"SET LOCAL statement_timeout = {STATEMENT_TIMEOUT_MS}")
-        rows = _rows(conn.execute(sql, params))
+        cur = conn.execute(sql, params)
+        rows, executed_sql = _rows(cur), _executed_sql(cur)
         as_of = _as_of(conn)
 
     truncated = len(rows) > limit
-    return Result(rows=rows[:limit], as_of=as_of, truncated=truncated)
+    return Result(
+        rows=rows[:limit],
+        as_of=as_of,
+        truncated=truncated,
+        meta={"retrieval": "structured", "sql": executed_sql},
+    )
 
 
 def market_stats(
@@ -170,10 +188,19 @@ def market_stats(
 
     with app_conn(auth.brokerage_id) as conn:
         conn.execute(f"SET LOCAL statement_timeout = {STATEMENT_TIMEOUT_MS}")
-        rows = _rows(conn.execute(sql, params))
+        cur = conn.execute(sql, params)
+        rows, executed_sql = _rows(cur), _executed_sql(cur)
         as_of = _as_of(conn)
 
-    return Result(rows=rows, as_of=as_of, meta={"filters": {"city": city, "state": state}})
+    return Result(
+        rows=rows,
+        as_of=as_of,
+        meta={
+            "retrieval": "aggregate",
+            "sql": executed_sql,
+            "filters": {"city": city, "state": state},
+        },
+    )
 
 
 _bedrock: Bedrock | None = None
@@ -210,9 +237,8 @@ def semantic_search(
 
     with app_conn(auth.brokerage_id) as conn:
         conn.execute(f"SET LOCAL statement_timeout = {STATEMENT_TIMEOUT_MS}")
-        rows = _rows(
-            conn.execute(
-                """
+        cur = conn.execute(
+            """
                 SELECT c.listing_id,
                        d.title      AS document,
                        d.doc_type,
@@ -224,12 +250,12 @@ def semantic_search(
                  ORDER BY c.embedding <=> %s::halfvec
                  LIMIT %s
                 """,
-                (vector, vector, limit),
-            )
+            (vector, vector, limit),
         )
+        rows, executed_sql = _rows(cur), _executed_sql(cur)
         as_of = _as_of(conn)
 
-    return Result(rows=rows, as_of=as_of, meta={"retrieval": "semantic"})
+    return Result(rows=rows, as_of=as_of, meta={"retrieval": "semantic", "sql": executed_sql})
 
 
 def hybrid_search(
@@ -310,13 +336,14 @@ def hybrid_search(
 
     with app_conn(auth.brokerage_id) as conn:
         conn.execute(f"SET LOCAL statement_timeout = {STATEMENT_TIMEOUT_MS}")
-        rows = _rows(conn.execute(sql, params))
+        cur = conn.execute(sql, params)
+        rows, executed_sql = _rows(cur), _executed_sql(cur)
         as_of = _as_of(conn)
 
     return Result(
         rows=rows,
         as_of=as_of,
-        meta={"retrieval": "hybrid", "filters_applied": len(where)},
+        meta={"retrieval": "hybrid", "sql": executed_sql, "filters_applied": len(where)},
     )
 
 
@@ -342,22 +369,21 @@ def flag_listing(auth: AuthContext, listing_id: int, reason: str) -> Result:
         if not owned:
             raise PermissionError(f"listing {listing_id} not found or not accessible")
 
-        rows = _rows(
-            conn.execute(
-                """
+        cur = conn.execute(
+            """
                 INSERT INTO actions
                     (listing_id, brokered_by, action_type, payload, requested_by)
                 VALUES (%s, %s, 'flag', %s, %s)
                 RETURNING action_id, listing_id, action_type, status, created_at
                 """,
-                (
-                    listing_id,
-                    auth.brokerage_id,  # from the verified identity, not from the caller
-                    Json({"reason": reason}),
-                    auth.subject,
-                ),
-            )
+            (
+                listing_id,
+                auth.brokerage_id,  # from the verified identity, not from the caller
+                Json({"reason": reason}),
+                auth.subject,
+            ),
         )
+        rows = _rows(cur)
         as_of = _as_of(conn)
         conn.commit()
 

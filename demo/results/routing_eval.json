@@ -1,0 +1,181 @@
+{
+  "brokerage": 103559,
+  "questions": [
+    {
+      "id": "s1",
+      "category": "structured",
+      "question": "Three-bed listings under $500,000 in Houston",
+      "right": {
+        "tool": "search_listings",
+        "rows": 10,
+        "correct": 10,
+        "precision": 1.0,
+        "ms": 21
+      },
+      "wrong": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 0,
+        "precision": 0.0,
+        "ms": 1952
+      }
+    },
+    {
+      "id": "s2",
+      "category": "structured",
+      "question": "Listings that have been on the market more than 90 days",
+      "right": {
+        "tool": "search_listings",
+        "rows": 10,
+        "correct": 10,
+        "precision": 1.0,
+        "ms": 16
+      },
+      "wrong": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 0,
+        "precision": 0.0,
+        "ms": 245
+      }
+    },
+    {
+      "id": "s3",
+      "category": "structured",
+      "question": "Listings between $200,000 and $300,000",
+      "right": {
+        "tool": "search_listings",
+        "rows": 9,
+        "correct": 9,
+        "precision": 1.0,
+        "ms": 16
+      },
+      "wrong": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 0,
+        "precision": 0.0,
+        "ms": 253
+      }
+    },
+    {
+      "id": "s4",
+      "category": "structured",
+      "question": "How many active listings, and what is the median price?",
+      "right": {
+        "tool": "market_stats",
+        "rows": 1,
+        "correct": 1,
+        "precision": 1.0,
+        "ms": 17
+      }
+    },
+    {
+      "id": "d1",
+      "category": "document",
+      "question": "Which buildings permit short-term rentals?",
+      "demonstrates": "POLARITY. 'Short-term rentals are permitted' and 'short-term rentals are prohibited' sit almost on top of each other in embedding space \u2014 they are the same topic. Retrieval finds the right clause and cannot tell you which way it points. The model must read the passage; that is why the citation is returned and why retrieval is an input to the answer rather than the answer.",
+      "right": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 0,
+        "precision": 0.0,
+        "ms": 347
+      }
+    },
+    {
+      "id": "d2",
+      "category": "document",
+      "question": "Which buildings prohibit short-term rentals outright?",
+      "right": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 10,
+        "precision": 1.0,
+        "ms": 241
+      }
+    },
+    {
+      "id": "d3",
+      "category": "document",
+      "question": "Is a special assessment anticipated in any of our buildings?",
+      "right": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 10,
+        "precision": 1.0,
+        "ms": 279
+      }
+    },
+    {
+      "id": "d4",
+      "category": "document",
+      "question": "What are the pet restrictions?",
+      "right": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 10,
+        "precision": 1.0,
+        "ms": 244
+      }
+    },
+    {
+      "id": "h1",
+      "category": "hybrid",
+      "question": "Condos under $500,000 in Houston that allow short-term rentals",
+      "demonstrates": "Same polarity limit as d1, now inside a hybrid query. The exact half (price, city) is perfect; the prose half retrieves the right clause without resolving which way it reads.",
+      "right": {
+        "tool": "hybrid_search",
+        "rows": 10,
+        "correct": 0,
+        "precision": 0.0,
+        "ms": 365
+      },
+      "wrong": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 0,
+        "precision": 0.0,
+        "ms": 240
+      }
+    },
+    {
+      "id": "h2",
+      "category": "hybrid",
+      "question": "Listings over 90 days old whose rules prohibit short-term rentals",
+      "right": {
+        "tool": "hybrid_search",
+        "rows": 10,
+        "correct": 10,
+        "precision": 1.0,
+        "ms": 256
+      },
+      "wrong": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 0,
+        "precision": 0.0,
+        "ms": 269
+      }
+    },
+    {
+      "id": "h3",
+      "category": "hybrid",
+      "question": "Two-bed listings whose building anticipates a special assessment",
+      "right": {
+        "tool": "hybrid_search",
+        "rows": 0,
+        "correct": 0,
+        "precision": null,
+        "ms": 289
+      },
+      "wrong": {
+        "tool": "semantic_search",
+        "rows": 10,
+        "correct": 0,
+        "precision": 0.0,
+        "ms": 257
+      }
+    }
+  ]
+}
