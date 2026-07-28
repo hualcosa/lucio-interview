@@ -19,9 +19,9 @@ A real-estate brokerage wants staff to ask questions of their own data in plain 
 to act on the answers.
 
 The data lives in an MLS. A **Multiple Listing Service** is the cooperative database US
-brokerages use to publish and share listings; there are roughly 500–600 regional instances,
-run by realtor associations, frequently decades old. The standard way to get data out of one
-is a nightly file export. There is no live API. Zillow, Redfin and Realtor.com all consume
+brokerages use to publish and share listings; there are roughly 490 regional instances, run by
+realtor associations, frequently decades old [[10]](#refs). The standard way to get data out of
+one is a nightly file export. There is no live API. Zillow, Redfin and Realtor.com all consume
 MLS data this way. The architecture must accept nightly batch as a given and be excellent
 anyway.
 
@@ -129,12 +129,13 @@ nothing else. At the brief's 3 million records the draft extrapolates to roughly
 and $9 per question**, against a stated budget of "a few seconds" and a capped bill.
 
 **A correction from my own measurements.** I expected memory to be the wall: a multi-gigabyte
-file parsed into program objects expands several times over, and Lambda has a hard 10 GB
-ceiling. Measured, the expansion is real but the base is smaller than assumed — about 1.9 GB
-at 3M records, reaching the ceiling only at **16.4 million**, roughly 35 months out at 5%
-growth. So the honest finding is not that the draft cannot run. It is that **it becomes too
+file parsed into program objects expands several times over, and Lambda is capped at 10,240 MB
+[[2]](#refs). Measured, the expansion is real but the base is smaller than assumed — about
+1.9 GB at 3M records, reaching the ceiling only at **16.4 million**, roughly 35 months out at
+5% growth. So the honest finding is not that the draft cannot run. It is that **it becomes too
 slow and too expensive years before it becomes impossible**, and it gives no warning as it
-degrades.
+degrades. Lambda's 15-minute hard timeout [[2]](#refs) is reached sooner than the memory
+ceiling, but both are years behind the point where the design stops being usable.
 
 Two further consequences:
 
@@ -240,7 +241,8 @@ Two more of the same shape:
 - *"Which of my listings sitting over 90 days have disclosed foundation issues?"* — the
   structured half tells you which are stale; the documents tell you **why**.
 - *"Which active pre-1978 listings are missing a signed lead-paint disclosure?"* — a federal
-  requirement with real penalties. This one asks about a document that **is not there**, and
+  requirement carrying civil and criminal penalties of up to $10,000 per violation, plus
+  treble damages [[9]](#refs). This one asks about a document that **is not there**, and
   similarity search has no concept of absence.
 
 ### "Why not just make these columns?"
@@ -261,8 +263,10 @@ stop it being the whole answer:
   said yes"* is not a defence in a dispute; *"Section 8.3, here is the text"* is. A vector
   search returns the passage; a column returns `true`.
 
-RESO does define fields like `PetsAllowed` and `LeaseConsideredYN`. They are agent-entered and
-widely unreliable — no brokerage relies on them for anything consequential.
+RESO does define fields of this kind. `PetsAllowed` is a real one, and it makes the point
+better than I could: it is populated by only 65% of participating organisations, and one of
+its eight permitted values is literally `Call` [[8]](#refs) — the schema conceding that the
+answer does not fit in the field.
 
 > **This is the real reason I chose PostgreSQL, stronger than any benchmark: the two halves
 > live together.** `pgvector` is an extension, not a separate system. Filters and vectors sit
@@ -271,9 +275,10 @@ widely unreliable — no brokerage relies on them for anything consequential.
 > the residency rule excludes hosted vector databases anyway.
 >
 > One caveat, because it is the failure mode people meet in production: filtered vector search
-> silently returns incomplete results unless `pgvector` 0.8's `iterative_scan` is enabled. Left
-> at the default, a filtered query can return a fraction of the matches with no error and no
-> warning. It is a one-line setting and it is not optional.
+> silently returns incomplete results unless `pgvector` 0.8's `iterative_scan` is enabled.
+> Filtering is applied *after* the index is scanned, so with the default `ef_search` of 40 and
+> a predicate matching 10% of rows, a request for ten results returns about four — no error, no
+> warning [[7]](#refs). It is a one-line setting and it is not optional.
 
 ---
 
@@ -281,10 +286,12 @@ widely unreliable — no brokerage relies on them for anything consequential.
 
 **What the draft does.** Every question regenerates embeddings for the entire dataset.
 
-**Why this fails.** 3 million records at roughly 150 words each is about 450 million units of
-text. At Amazon's current embedding price ($0.02 per million) that is **approximately $9 for
-a single question**. Ten questions would exhaust a month of most small-business budgets, and
-the processing time would be measured in hours.
+**Why this fails.** 3 million records at roughly 150 words each is about 450 million words. At
+Titan Text Embeddings V2's price of $0.02 per million tokens [[3]](#refs) that is
+**approximately $9 for a single question** — and that is the conservative reading, since
+English runs about 1.3 tokens per word, putting the true figure nearer $12. Ten questions would
+exhaust a month of most small-business budgets, and the processing time would be measured in
+hours.
 
 But the arithmetic is not the interesting part. **There is nowhere in the draft to put an
 embedding.** There is a file in S3 and the temporary memory of a Lambda that vanishes when
@@ -344,8 +351,12 @@ There is a subtler failure specific to AI agents, the **confused deputy**. If th
 connects to the database using a single all-powerful account, the AI is a deputy holding
 universal keys. A user entitled only to their own office's listings can phrase a request that
 persuades the agent to fetch another office's — and the agent, having the keys, complies. The
-security model was not wrong at the database; it was bypassed at the conversation. The MCP
-specification names this failure explicitly and forbids the pattern that causes it.
+security model was not wrong at the database; it was bypassed at the conversation.
+
+The MCP specification names this failure explicitly and forbids the pattern that causes it:
+servers **MUST** validate that a token was issued for them, **MUST NOT** accept or transit any
+other token, and **MUST NOT** pass through the token received from the client to an upstream
+API [[6]](#refs).
 
 ### The fix — identity travels all the way down
 
@@ -520,10 +531,12 @@ internet. What reaches the user's browser is the *answer*, not the records.
 
 Reached over an **interface VPC endpoint (AWS PrivateLink)**, calls to Bedrock leave the
 customer's VPC — they have to, since the models run in AWS-operated accounts — but they do not
-leave the AWS network and do not leave the Region. AWS documents this directly: traffic never
-traverses the public internet, no internet gateway or NAT device is involved, no public IP is
-needed. AWS further states that Bedrock does not store or log prompts and completions, does
-not train on them, and does not share them with model providers.
+leave the AWS network and do not leave the Region. AWS documents this directly: you can access
+Bedrock "without the use of an internet gateway, NAT device, VPN connection, or Direct Connect
+connection," and instances "don't need public IP addresses" [[5]](#refs). AWS further states
+that inputs and outputs are not used to train any model and are not shared with model
+providers, and that content processed by Bedrock "is encrypted and stored at rest in the AWS
+Region where you are using Amazon Bedrock" [[4]](#refs).
 
 The decisive argument is consistency. **S3 is also an AWS-managed service outside the
 customer's VPC** — and the client's own requirement is that the nightly export lands there.
@@ -541,7 +554,8 @@ gateway anywhere — there is no internet path to misconfigure.
 Some Bedrock models cannot be invoked on demand by their base identifier and require an
 **inference profile**. The available profiles are *cross-Region*: they route to whichever
 Region has capacity, which buys real availability headroom and, for the `global.` profile, is
-about 10% cheaper than the US-scoped one.
+about 10% cheaper than the US-scoped one — Nova 2 Lite is $0.30/$2.50 per million tokens
+globally against $0.33/$2.75 on the US profile [[3]](#refs).
 
 Those are genuine benefits, and I would take them — except the brief says raw records must not
 leave the client's account **or region**. Cross-Region inference moves the prompt, and the
@@ -606,8 +620,12 @@ architecture*, not in a document somebody is supposed to read.
 - **Cached answers valid until the next nightly load.** Data changes once a day, so a 24-hour
   cache is not reckless here — it is *provably correct*. The constraint everyone reads as a
   limitation is the strongest cost lever in the design.
-- **No NAT Gateway.** Private endpoints instead save roughly $32 a month *and* mean traffic
-  never touches the public internet — the residency argument, made structural.
+- **No NAT Gateway.** A NAT Gateway is $0.045/hour — $32.85 a month before a byte of data
+  processing. Interface endpoints are $0.01/hour per endpoint per AZ [[2]](#refs), so this is
+  only a saving while the endpoint count stays low; across two AZs, four endpoints already cost
+  more than the NAT Gateway they replaced. **The reason to do it anyway is structural, not
+  financial:** with no NAT and no internet gateway there is no egress path at all, which is a
+  claim that can be *demonstrated* rather than asserted.
 - Cost-allocation tags, so spend can be attributed per office
 
 **Security**
@@ -631,17 +649,24 @@ architecture*, not in a document somebody is supposed to read.
 
 ## 4.4 What it costs, and where the time goes
 
-| Component | Monthly |
-|---|---|
-| Aurora Serverless PostgreSQL (0.5–2 capacity units) | ~$45–150 |
-| S3 storage (~5 GB plus history) | <$5 |
-| Lambda (adapter, domain service, nightly ingest) | ~$10–30 |
-| Embeddings — nightly, changed documents only | **~$1–5** |
-| NAT Gateway | **$0** — private endpoints only |
-| **Infrastructure floor** | **~$60–190** |
-| AI model inference | The dominant variable; scales with usage and model choice |
+| Component | Monthly | Basis |
+|---|---|---|
+| Aurora Serverless v2 (0.5–2 ACU) | ~$44–175 | $0.12/ACU-hour × 730 h |
+| Aurora storage and I/O | ~$2–5 | $0.10/GB-month |
+| S3 (nightly dumps plus retained history) | ~$2–5 | $0.023/GB-month |
+| Lambda (adapter, domain service, ingest) | ~$10–30 | $0.0000166667/GB-second |
+| VPC interface endpoints | ~$15–45 | $0.01/hour per endpoint per AZ |
+| NAT Gateway | **$0** | not deployed |
+| Embeddings — nightly, changed documents only | ~$1–5 | $0.02/1M tokens |
+| **Infrastructure floor** | **~$75–265** | |
+| AI model inference | The dominant variable | scales with usage and model choice |
 
-Plus a one-time **~$3** to embed the existing document corpus.
+Plus a one-time **~$3** to embed the existing document corpus. Per-unit prices are us-east-1,
+July 2026; sources in the appendix.
+
+**The VPC endpoint line is the one people forget**, and it is why the floor is not lower. It is
+also the line that pays for the residency argument — worth stating plainly rather than
+discovering in month two.
 
 | Where a query's time goes | |
 |---|---|
@@ -652,7 +677,7 @@ Plus a one-time **~$3** to embed the existing document corpus.
 
 **The comparison that matters:** the draft spends roughly **$9 per query on embeddings
 alone** — approximately the *monthly* infrastructure cost of the revised design, consumed by
-one question. Plus about **$210 a month** re-reading an unchanged file.
+one question. Plus about **$200 a month** in Lambda time re-reading an unchanged file.
 
 **Where to optimise:** once the data layer is fixed, the model accounts for 80–90% of response
 time. Everything else is noise — worth knowing before anyone proposes a sprint making the
@@ -763,3 +788,80 @@ the system fast, affordable, auditable, and safe enough for a compliance team to
 
 *Assumptions in Section 1.3 are the load-bearing inputs to everything above. If any is wrong,
 the affected recommendation is flagged in place with the condition that would change it.*
+
+---
+
+# Appendix — Sources and how each figure was derived
+
+<a name="refs"></a>
+
+Every price is us-east-1 on-demand, verified July 2026. Cloud pricing moves; re-check before
+quoting any of this in a contract.
+
+## Where the numbers come from
+
+Three different kinds of number appear in this document, and they deserve different levels of
+trust:
+
+| Kind | Example | How to treat it |
+|---|---|---|
+| **Measured** | The latency table in Section 3.2 | Reproducible — `demo/results/benchmark.json` |
+| **Published unit price × stated volume** | The $9-per-query embedding cost | Arithmetic; only the assumed volume is arguable |
+| **Estimated** | "1,000 queries a day," "0.5–2% nightly churn" | Assumption 4. Stated so it can be replaced with the client's real figures |
+
+## Derivations
+
+| Claim | Derivation |
+|---|---|
+| ~$9 per query to re-embed | 3M records × ~150 words = 450M words × $0.02/1M [3]. Conservative: at ~1.3 tokens/word the true figure is ~$12 |
+| ~$200/month re-reading the file | 10 GB × 40 s = 400 GB-s × $0.0000166667 [2] = $0.0067/invocation × 1,000/day × 30 |
+| Aurora ~$44–175/month | 0.5–2 ACU × $0.12/ACU-hour [1] × 730 hours |
+| NAT Gateway $32.85/month | $0.045/hour [2] × 730 hours, before data processing |
+| VPC endpoints ~$15–45/month | $0.01/hour per endpoint per AZ [2] × 730 × 2–6 endpoint-AZs |
+| 3M → 5.4M → 9.7M records | 3M × 1.05^12 and 1.05^24 |
+| ~$0.000004 per question at query time | One ~200-token question × $0.02/1M [3] |
+
+## References
+
+1. **Amazon Aurora pricing** — Aurora Serverless v2 at $0.12 per ACU-hour, storage at
+   $0.10/GB-month, us-east-1. <https://aws.amazon.com/rds/aurora/pricing/>
+2. **AWS Lambda and Amazon VPC pricing** — Lambda x86 at $0.0000166667/GB-second, memory
+   configurable to 10,240 MB, 900-second maximum timeout; NAT Gateway at $0.045/hour; interface
+   VPC endpoints at $0.01/hour per AZ. <https://aws.amazon.com/lambda/pricing/> ·
+   <https://aws.amazon.com/vpc/pricing/> ·
+   <https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html>
+3. **Amazon Bedrock pricing** — Titan Text Embeddings V2 at $0.00002 per 1,000 tokens; Nova 2
+   Lite at $0.30/$2.50 per million tokens on the global profile against $0.33/$2.75 on the US
+   profile. The profile differential is not broken out on the AWS pricing page and was
+   confirmed against third-party trackers; **treat it as indicative and verify at build time.**
+   <https://aws.amazon.com/bedrock/pricing/> · <https://cloudprice.net/models/amazon-nova-2-lite>
+4. **Amazon Bedrock data privacy** — inputs and outputs are not used to train Amazon Nova,
+   Amazon Titan or any third-party model, are not shared with model providers, and are
+   encrypted and stored at rest in the Region of use. <https://aws.amazon.com/bedrock/faqs/>
+5. **Bedrock interface VPC endpoints (PrivateLink)** — access "without the use of an internet
+   gateway, NAT device, VPN connection, or Direct Connect connection"; instances "don't need
+   public IP addresses." Also the source for endpoint policies scoping `bedrock:InvokeModel`.
+   <https://docs.aws.amazon.com/bedrock/latest/userguide/vpc-interface-endpoints.html>
+6. **MCP specification 2025-11-25, Authorization** — servers MUST validate that tokens were
+   issued for them, MUST NOT accept or transit other tokens, and MUST NOT pass through a
+   client's token to an upstream API. Includes the named Confused Deputy Problem section.
+   <https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization>
+7. **pgvector — iterative index scans** — introduced in 0.8.0; filtering is applied after the
+   index scan, so a predicate matching 10% of rows with the default `ef_search` of 40 returns
+   roughly 4 of 10 requested results. `strict_order` and `relaxed_order` settings.
+   <https://github.com/pgvector/pgvector>
+8. **RESO Data Dictionary 2.0, `PetsAllowed`** — Property resource, String List Multi, eight
+   lookup values including `Call`, 65% adoption across participating organisations.
+   <https://dd.reso.org/DD2.0/Property/PetsAllowed/>
+9. **Lead-Based Paint Disclosure Rule** (Title X §1018, 24 CFR Part 35 Subpart A) — disclosure
+   required for most housing built before 1978; penalties up to $10,000 civil and $10,000
+   criminal per violation, plus treble damages.
+   <https://www.epa.gov/lead/lead-based-paint-disclosure-rule-section-1018-title-x>
+10. **MLS count** — 489 multiple listing services in the US as of 2026, down from roughly twice
+    that in 2015. <https://www.reso.org/mls-faq/>
+
+## Measured results
+
+The latency and memory figures in Section 3.2, the routing evaluation, and the ingest run
+statistics are reproducible from the accompanying implementation. Raw output and method are in
+`demo/results/`.
