@@ -75,11 +75,19 @@ def _executed_sql(cur) -> str:
 
     Shown verbatim in the demo's trace panel. Making the generated SQL visible
     is the point: the model chose a tool, not a query, and anyone can check.
+
+    psycopg3 keeps the bound statement on the private `_query` — there is no
+    public accessor. Tracing must never break a request, so this degrades to an
+    empty string rather than raising.
     """
     try:
-        return " ".join((cur.query or b"").decode().split())
-    except Exception:  # noqa: BLE001 - tracing must never break a request
-        return ""
+        query = getattr(cur, "_query", None)
+        raw = getattr(query, "query", None) if query is not None else None
+        if isinstance(raw, bytes):
+            return " ".join(raw.decode(errors="replace").split())
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
 
 
 def search_listings(

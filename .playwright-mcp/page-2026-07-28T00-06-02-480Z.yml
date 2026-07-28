@@ -1,0 +1,43 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Natural-language agent over legacy MLS data" [level=1] [ref=e3]
+    - paragraph [ref=e4]: Not a chat. A fixed question bank, and a panel showing exactly what happened — which tool was chosen, the SQL the database received, the passages retrieved with their citations. The free-form box exists to be refused.
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - heading "Structured" [level=2] [ref=e7]
+      - button "Three-bed listings under $500,000 in Houston Exact facts. No embeddings involved." [ref=e8] [cursor=pointer]:
+        - text: Three-bed listings under $500,000 in Houston
+        - generic [ref=e9]: Exact facts. No embeddings involved.
+      - button "Listings sitting on the market more than 90 days A date comparison. Similarity has no notion of 'more than 90 days'." [ref=e10] [cursor=pointer]:
+        - text: Listings sitting on the market more than 90 days
+        - generic [ref=e11]: A date comparison. Similarity has no notion of 'more than 90 days'.
+      - button "How many active listings, and what is the median price? An aggregate. Vector search cannot compute a median." [ref=e12] [cursor=pointer]:
+        - text: How many active listings, and what is the median price?
+        - generic [ref=e13]: An aggregate. Vector search cannot compute a median.
+      - heading "Document" [level=2] [ref=e14]
+      - button "What do our buildings say about short-term rentals? No column holds this. It lives in the building's rules." [ref=e15] [cursor=pointer]:
+        - text: What do our buildings say about short-term rentals?
+        - generic [ref=e16]: No column holds this. It lives in the building's rules.
+      - button "Is a special assessment anticipated anywhere? Retrieved by meaning, returned with its citation." [ref=e17] [cursor=pointer]:
+        - text: Is a special assessment anticipated anywhere?
+        - generic [ref=e18]: Retrieved by meaning, returned with its citation.
+      - button "What are the pet restrictions? Pet rules are prose, not a boolean." [ref=e19] [cursor=pointer]:
+        - text: What are the pet restrictions?
+        - generic [ref=e20]: Pet rules are prose, not a boolean.
+      - heading "Hybrid" [level=2] [ref=e21]
+      - button "Condos under $500,000 in Houston whose rules address short-term rentals Price is exact; 'allows short-term rentals' is buried in legal prose. Neither path answers this alone." [ref=e22] [cursor=pointer]:
+        - text: Condos under $500,000 in Houston whose rules address short-term rentals
+        - generic [ref=e23]: Price is exact; 'allows short-term rentals' is buried in legal prose. Neither path answers this alone.
+      - 'button "Listings over 90 days old whose building anticipates a special assessment Stale inventory, and why: the structured half finds them, the documents explain them." [ref=e24] [cursor=pointer]':
+        - text: Listings over 90 days old whose building anticipates a special assessment
+        - generic [ref=e25]: "Stale inventory, and why: the structured half finds them, the documents explain them."
+      - heading "Free form — guardrail test" [level=2] [ref=e26]
+      - generic [ref=e27]:
+        - textbox "Ask anything. Watch it get refused." [ref=e28]
+        - button "Ask" [ref=e29] [cursor=pointer]
+      - paragraph [ref=e30]: The model may pick a vetted tool and fill typed arguments. It cannot write SQL, invent a tool, or name a brokerage — every choice is validated against the published schema before the database is touched.
+      - paragraph [ref=e31]:
+        - text: Signed in as brokerage
+        - code [ref=e32]: "103559"
+        - text: . Row-level security scopes every query to it, server-side.
+    - generic [ref=e33]: Pick a question.

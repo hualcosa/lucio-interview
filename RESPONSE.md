@@ -153,13 +153,35 @@ it in memory, and searches it by reading through it from top to bottom.
 
 ### Why this fails
 
-**It does not merely run slowly. At the stated data volume, it cannot run at all.**
+I built both designs and measured them on 2.2 million real listing records, so the numbers
+below are observed rather than estimated. The full method and raw output are in
+`demo/results/benchmark.json`.
 
-A 3 GB CSV file does not occupy 3 GB once loaded into a program. Text parsed into a
-programming language's internal objects typically expands **three to ten times** — so a 3 GB
-file becomes **15–30 GB of memory**. AWS Lambda has a hard ceiling of 10 GB. The design
-crosses that ceiling before it ever reaches 3 million records.
+| Records | Draft design | Revised design |
+|---:|---|---|
+| 10,000 | 61 ms · $0.03/query | 36 ms |
+| 100,000 | 610 ms · $0.30/query | 33 ms |
+| 500,000 | 2,784 ms · $1.50/query | 31 ms |
+| 1,000,000 | 5,483 ms · $3.00/query | 31 ms |
+| **2,221,849** | **11,991 ms · $6.67/query** | **33 ms** |
 
+**Read the right-hand column first.** It does not move. Thirty-three milliseconds at ten
+thousand records and thirty-three milliseconds at two million, because an indexed lookup does
+not care how much data it is *not* looking at. The left-hand column grows in a straight line,
+because a full scan cares about nothing else.
+
+At the brief's stated 3 million records the draft extrapolates to roughly **16 seconds and $9
+per question** — against a stated budget of "a few seconds" and a capped monthly bill.
+
+**A correction I owe you, from my own measurements.** I expected memory to be the wall: a
+multi-gigabyte file parsed into program objects typically expands several times over, and
+Lambda has a hard 10 GB ceiling. Measured, the expansion is real but the base is smaller than
+assumed — about 1.9 GB at 3 million records, reaching the ceiling only at **16.4 million**,
+which at 5% monthly growth is roughly **35 months away**.
+
+So the honest finding is not that the draft cannot run. It is that **it becomes too slow and
+too expensive years before it becomes impossible** — and the design gives no warning as it
+degrades, because nothing about it changes except the numbers.
 
 Three further consequences deserve naming:
 

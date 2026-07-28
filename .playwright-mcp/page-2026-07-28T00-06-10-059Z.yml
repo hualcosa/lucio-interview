@@ -1,0 +1,180 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Natural-language agent over legacy MLS data" [level=1] [ref=e3]
+    - paragraph [ref=e4]: Not a chat. A fixed question bank, and a panel showing exactly what happened — which tool was chosen, the SQL the database received, the passages retrieved with their citations. The free-form box exists to be refused.
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - heading "Structured" [level=2] [ref=e7]
+      - button "Three-bed listings under $500,000 in Houston Exact facts. No embeddings involved." [ref=e8] [cursor=pointer]:
+        - text: Three-bed listings under $500,000 in Houston
+        - generic [ref=e9]: Exact facts. No embeddings involved.
+      - button "Listings sitting on the market more than 90 days A date comparison. Similarity has no notion of 'more than 90 days'." [ref=e10] [cursor=pointer]:
+        - text: Listings sitting on the market more than 90 days
+        - generic [ref=e11]: A date comparison. Similarity has no notion of 'more than 90 days'.
+      - button "How many active listings, and what is the median price? An aggregate. Vector search cannot compute a median." [ref=e12] [cursor=pointer]:
+        - text: How many active listings, and what is the median price?
+        - generic [ref=e13]: An aggregate. Vector search cannot compute a median.
+      - heading "Document" [level=2] [ref=e14]
+      - button "What do our buildings say about short-term rentals? No column holds this. It lives in the building's rules." [ref=e15] [cursor=pointer]:
+        - text: What do our buildings say about short-term rentals?
+        - generic [ref=e16]: No column holds this. It lives in the building's rules.
+      - button "Is a special assessment anticipated anywhere? Retrieved by meaning, returned with its citation." [ref=e17] [cursor=pointer]:
+        - text: Is a special assessment anticipated anywhere?
+        - generic [ref=e18]: Retrieved by meaning, returned with its citation.
+      - button "What are the pet restrictions? Pet rules are prose, not a boolean." [ref=e19] [cursor=pointer]:
+        - text: What are the pet restrictions?
+        - generic [ref=e20]: Pet rules are prose, not a boolean.
+      - heading "Hybrid" [level=2] [ref=e21]
+      - button "Condos under $500,000 in Houston whose rules address short-term rentals Price is exact; 'allows short-term rentals' is buried in legal prose. Neither path answers this alone." [active] [pressed] [ref=e22] [cursor=pointer]:
+        - text: Condos under $500,000 in Houston whose rules address short-term rentals
+        - generic [ref=e23]: Price is exact; 'allows short-term rentals' is buried in legal prose. Neither path answers this alone.
+      - 'button "Listings over 90 days old whose building anticipates a special assessment Stale inventory, and why: the structured half finds them, the documents explain them." [ref=e24] [cursor=pointer]':
+        - text: Listings over 90 days old whose building anticipates a special assessment
+        - generic [ref=e25]: "Stale inventory, and why: the structured half finds them, the documents explain them."
+      - heading "Free form — guardrail test" [level=2] [ref=e26]
+      - generic [ref=e27]:
+        - textbox "Ask anything. Watch it get refused." [ref=e28]
+        - button "Ask" [ref=e29] [cursor=pointer]
+      - paragraph [ref=e30]: The model may pick a vetted tool and fill typed arguments. It cannot write SQL, invent a tool, or name a brokerage — every choice is validated against the published schema before the database is touched.
+      - paragraph [ref=e31]:
+        - text: Signed in as brokerage
+        - code [ref=e32]: "103559"
+        - text: . Row-level security scopes every query to it, server-side.
+    - generic [ref=e33]:
+      - generic [ref=e35]:
+        - heading "Trace" [level=3] [ref=e36]
+        - generic [ref=e37]:
+          - term [ref=e38]: tool selected
+          - definition [ref=e39]: hybrid_search
+          - term [ref=e40]: arguments
+          - definition [ref=e41]: "{\"question\":\"short-term rentals permitted or prohibited\",\"city\":\"Houston\",\"max_price\":500000,\"limit\":8}"
+          - term [ref=e42]: retrieval
+          - definition [ref=e43]: hybrid
+          - term [ref=e44]: brokerage (server-side)
+          - definition [ref=e45]: "103559"
+          - term [ref=e46]: rows returned
+          - definition [ref=e47]: "8"
+          - term [ref=e48]: data as of
+          - definition [ref=e49]: 2026-07-26
+          - term [ref=e50]: elapsed
+          - definition [ref=e51]: 3243 ms
+      - generic [ref=e52]:
+        - heading "SQL the database received" [level=3] [ref=e53]
+        - generic [ref=e54]: WITH ranked AS ( SELECT l.listing_id, l.price, l.bed, l.bath, l.city, l.state, l.list_date, (current_date - l.list_date) AS days_on_market, d.title AS document, c.passage, round((1 - (c.embedding <=> $1::halfvec))::numeric, 4) AS similarity, row_number() OVER ( PARTITION BY l.listing_id ORDER BY c.embedding <=> $2::halfvec ) AS rn FROM listings l JOIN chunks c ON c.listing_id = l.listing_id JOIN documents d ON d.document_id = c.document_id WHERE l.status = $3 AND l.price <= $4 AND l.city % $5 ) SELECT listing_id, price, bed, bath, city, state, list_date, days_on_market, document, passage, similarity FROM ranked WHERE rn = 1 ORDER BY similarity DESC LIMIT $6
+        - paragraph [ref=e55]: The model chose a tool, not a query. This SQL is ours.
+      - generic [ref=e56]:
+        - heading "Results — 8 row(s)" [level=3] [ref=e57]
+        - table [ref=e59]:
+          - rowgroup [ref=e60]:
+            - row [ref=e61]:
+              - columnheader "listing id" [ref=e62]
+              - columnheader "price" [ref=e63]
+              - columnheader "bed" [ref=e64]
+              - columnheader "bath" [ref=e65]
+              - columnheader "city" [ref=e66]
+              - columnheader "state" [ref=e67]
+              - columnheader "list date" [ref=e68]
+              - columnheader "days on market" [ref=e69]
+              - columnheader "document" [ref=e70]
+              - columnheader "passage" [ref=e71]
+              - columnheader "similarity" [ref=e72]
+          - rowgroup [ref=e73]:
+            - row [ref=e74]:
+              - cell "1,056,180" [ref=e75]
+              - cell "479,990" [ref=e76]
+              - cell "3" [ref=e77]
+              - cell "4" [ref=e78]
+              - cell "Houston" [ref=e79]
+              - cell "Texas" [ref=e80]
+              - cell "2025-12-24" [ref=e81]
+              - cell "216" [ref=e82]
+              - cell "Rules and Regulations — Houston Condominium Association" [ref=e83]
+              - 'cell "1.2. **Short-Term Rentals Prohibited**: The operation or promotion of any short-term rental, defined as any lease, license, or occupancy agreement for a period of less than thirty (30) days, is strictly prohibited. This prohibition includes, but is not limited…" [ref=e84]'
+              - cell "0.801" [ref=e85]
+            - row [ref=e86]:
+              - cell "1,055,571" [ref=e87]
+              - cell "404,990" [ref=e88]
+              - cell "3" [ref=e89]
+              - cell "4" [ref=e90]
+              - cell "Houston" [ref=e91]
+              - cell "Texas" [ref=e92]
+              - cell "2025-11-12" [ref=e93]
+              - cell "258" [ref=e94]
+              - cell "Rules and Regulations — Houston Condominium Association" [ref=e95]
+              - cell "**Cedar Point Tower Condominium Association Rules and Regulations** **1. Leasing and Occupancy** 1.1 Short-term rentals, defined as leases or occupancies of thirty (30) consecutive days or less, are prohibited in general. 1.2 Notwithstanding the prohibition…" [ref=e96]
+              - cell "0.699" [ref=e97]
+            - row [ref=e98]:
+              - cell "1,066,308" [ref=e99]
+              - cell "304,990" [ref=e100]
+              - cell "3" [ref=e101]
+              - cell "3" [ref=e102]
+              - cell "Houston" [ref=e103]
+              - cell "Texas" [ref=e104]
+              - cell "2025-12-25" [ref=e105]
+              - cell "215" [ref=e106]
+              - cell "Rules and Regulations — Houston Condominium Association" [ref=e107]
+              - cell "**Cedar Point Tower Condominium Association Rules and Regulations** **1. Leasing and Occupancy** 1.1 Short-term rentals, defined as leases or occupancies of thirty (30) consecutive days or less, are prohibited in general. 1.2 Notwithstanding the prohibition…" [ref=e108]
+              - cell "0.699" [ref=e109]
+            - row [ref=e110]:
+              - cell "1,055,134" [ref=e111]
+              - cell "361,490" [ref=e112]
+              - cell "3" [ref=e113]
+              - cell "3" [ref=e114]
+              - cell "Houston" [ref=e115]
+              - cell "Texas" [ref=e116]
+              - cell "2025-04-25" [ref=e117]
+              - cell "459" [ref=e118]
+              - cell "Rules and Regulations — Houston Condominium Association" [ref=e119]
+              - 'cell "1.2 **Short-Term Rentals**: The association expressly prohibits short-term rentals of any unit, defined as rentals or leases with a term of less than thirty (30) days. This prohibition includes, but is not limited to, rentals facilitated through online platfor…" [ref=e120]'
+              - cell "0.697" [ref=e121]
+            - row [ref=e122]:
+              - cell "1,055,320" [ref=e123]
+              - cell "399,990" [ref=e124]
+              - cell "3" [ref=e125]
+              - cell "4" [ref=e126]
+              - cell "Houston" [ref=e127]
+              - cell "Texas" [ref=e128]
+              - cell "2024-09-20" [ref=e129]
+              - cell "676" [ref=e130]
+              - cell "Rules and Regulations — Houston Condominium Association" [ref=e131]
+              - 'cell "### Kingsley Condominiums Rules and Regulations **1. Leasing and Occupancy** 1.1 Short-term rentals of any Unit, defined as leases or rentals of thirty (30) days or less in duration, are hereby PROHIBITED, except as follows: a. Units originally acquired pri…" [ref=e132]'
+              - cell "0.686" [ref=e133]
+            - row [ref=e134]:
+              - cell "1,059,524" [ref=e135]
+              - cell "354,990" [ref=e136]
+              - cell "3" [ref=e137]
+              - cell "3" [ref=e138]
+              - cell "Houston" [ref=e139]
+              - cell "Texas" [ref=e140]
+              - cell "2025-03-28" [ref=e141]
+              - cell "487" [ref=e142]
+              - cell "Rules and Regulations — Houston Condominium Association" [ref=e143]
+              - 'cell "### Kingsley Condominiums Rules and Regulations **1. Leasing and Occupancy** 1.1 Short-term rentals of any Unit, defined as leases or rentals of thirty (30) days or less in duration, are hereby PROHIBITED, except as follows: a. Units originally acquired pri…" [ref=e144]'
+              - cell "0.686" [ref=e145]
+            - row [ref=e146]:
+              - cell "1,055,239" [ref=e147]
+              - cell "339,990" [ref=e148]
+              - cell "3" [ref=e149]
+              - cell "4" [ref=e150]
+              - cell "Houston" [ref=e151]
+              - cell "Texas" [ref=e152]
+              - cell "2025-06-02" [ref=e153]
+              - cell "421" [ref=e154]
+              - cell "Rules and Regulations — Houston Condominium Association" [ref=e155]
+              - cell "**Windermere Commons Condominium Association Rules and Regulations** **1. Leasing and Occupancy** 1.1 Short-term rentals of any Condominium Unit are hereby PROHIBITED IN GENERAL; provided, however, that this prohibition shall not apply to Condominium Units w…" [ref=e156]
+              - cell "0.625" [ref=e157]
+            - row [ref=e158]:
+              - cell "1,058,595" [ref=e159]
+              - cell "335,790" [ref=e160]
+              - cell "3" [ref=e161]
+              - cell "3" [ref=e162]
+              - cell "Houston" [ref=e163]
+              - cell "Texas" [ref=e164]
+              - cell "2026-04-17" [ref=e165]
+              - cell "102" [ref=e166]
+              - cell "Rules and Regulations — Houston Condominium Association" [ref=e167]
+              - cell "**Windermere Commons Condominium Association Rules and Regulations** **1. Leasing and Occupancy** 1.1 Short-term rentals of any Condominium Unit are hereby PROHIBITED IN GENERAL; provided, however, that this prohibition shall not apply to Condominium Units w…" [ref=e168]
+              - cell "0.625" [ref=e169]
+      - generic [ref=e170]:
+        - heading "Told to the model" [level=3] [ref=e171]
+        - paragraph [ref=e172]: Data is current as of the 2026-07-26 overnight load and may be up to 24 hours old. Say so if the answer is time-sensitive.

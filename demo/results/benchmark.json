@@ -1,0 +1,115 @@
+{
+  "measurements": [
+    {
+      "approach": "naive",
+      "scale": 10000,
+      "latency_ms": 61.3,
+      "peak_memory_mb": 11.1,
+      "rows_returned": 2571,
+      "lambda_cost_usd": 1e-05,
+      "embedding_cost_usd": 0.03,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "indexed",
+      "scale": 10000,
+      "latency_ms": 36.5,
+      "peak_memory_mb": 59.6,
+      "rows_returned": 25,
+      "lambda_cost_usd": 3e-07,
+      "embedding_cost_usd": 0.0,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "naive",
+      "scale": 100000,
+      "latency_ms": 609.6,
+      "peak_memory_mb": 101.3,
+      "rows_returned": 18883,
+      "lambda_cost_usd": 0.000102,
+      "embedding_cost_usd": 0.3,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "indexed",
+      "scale": 100000,
+      "latency_ms": 32.7,
+      "peak_memory_mb": 160.9,
+      "rows_returned": 25,
+      "lambda_cost_usd": 2.7e-07,
+      "embedding_cost_usd": 0.0,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "naive",
+      "scale": 500000,
+      "latency_ms": 2783.8,
+      "peak_memory_mb": 445.0,
+      "rows_returned": 112480,
+      "lambda_cost_usd": 0.000464,
+      "embedding_cost_usd": 1.5,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "indexed",
+      "scale": 500000,
+      "latency_ms": 31.2,
+      "peak_memory_mb": 605.9,
+      "rows_returned": 25,
+      "lambda_cost_usd": 2.6e-07,
+      "embedding_cost_usd": 0.0,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "naive",
+      "scale": 1000000,
+      "latency_ms": 5483.3,
+      "peak_memory_mb": 556.8,
+      "rows_returned": 237318,
+      "lambda_cost_usd": 0.000914,
+      "embedding_cost_usd": 3.0,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "indexed",
+      "scale": 1000000,
+      "latency_ms": 31.4,
+      "peak_memory_mb": 1162.7,
+      "rows_returned": 25,
+      "lambda_cost_usd": 2.6e-07,
+      "embedding_cost_usd": 0.0,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "naive",
+      "scale": 2221849,
+      "latency_ms": 11990.6,
+      "peak_memory_mb": 1386.9,
+      "rows_returned": 565824,
+      "lambda_cost_usd": 0.001998,
+      "embedding_cost_usd": 6.6655,
+      "exceeds_lambda_ceiling": false
+    },
+    {
+      "approach": "indexed",
+      "scale": 2221849,
+      "latency_ms": 33.0,
+      "peak_memory_mb": 2549.6,
+      "rows_returned": 25,
+      "lambda_cost_usd": 2.8e-07,
+      "embedding_cost_usd": 0.0,
+      "exceeds_lambda_ceiling": false
+    }
+  ],
+  "projection": {
+    "mb_per_1k_records": 0.62,
+    "records_at_lambda_ceiling": 16404739,
+    "months_from_3M_until_ceiling": 34.8,
+    "memory_at_3M_records_mb": 1873
+  },
+  "notes": {
+    "naive_reads_local_disk": "flatters the draft: no S3 transfer included",
+    "embedding_cost": "calculated from token counts, not incurred",
+    "lambda_ceiling_mb": 10240
+  }
+}

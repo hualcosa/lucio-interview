@@ -1,0 +1,179 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MLS agent — architecture demo</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#252a33; --ink:#e6e9ef; --dim:#8b94a5;
+          --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --acc:#60a5fa; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif }
+  header { padding:20px 24px; border-bottom:1px solid var(--line) }
+  h1 { margin:0; font-size:17px; font-weight:600 }
+  header p { margin:6px 0 0; color:var(--dim); font-size:13px; max-width:70ch }
+  .wrap { display:grid; grid-template-columns:minmax(320px,420px) 1fr; gap:0; min-height:calc(100vh - 86px) }
+  .left { border-right:1px solid var(--line); padding:18px; overflow:auto }
+  .right { padding:18px; overflow:auto; background:#0c0e12 }
+  h2 { font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:var(--dim);
+       margin:22px 0 9px; font-weight:600 }
+  h2:first-child { margin-top:0 }
+  button.q { display:block; width:100%; text-align:left; margin-bottom:7px; padding:11px 13px;
+             background:var(--panel); color:var(--ink); border:1px solid var(--line);
+             border-radius:7px; cursor:pointer; font:inherit }
+  button.q:hover { border-color:var(--acc) }
+  button.q[aria-pressed="true"] { border-color:var(--acc); background:#1b2230 }
+  button.q .blurb { display:block; color:var(--dim); font-size:12px; margin-top:4px }
+  form { display:flex; gap:7px; margin-top:8px }
+  input { flex:1; padding:10px 12px; background:var(--panel); color:var(--ink);
+          border:1px solid var(--line); border-radius:7px; font:inherit }
+  input:focus { outline:none; border-color:var(--warn) }
+  form button { padding:10px 16px; background:var(--warn); color:#000; border:0;
+                border-radius:7px; cursor:pointer; font:inherit; font-weight:600 }
+  .note { color:var(--dim); font-size:12px; margin:8px 0 0 }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+          padding:14px; margin-bottom:14px }
+  .card h3 { margin:0 0 10px; font-size:12px; text-transform:uppercase;
+             letter-spacing:.08em; color:var(--dim); font-weight:600 }
+  pre { margin:0; white-space:pre-wrap; word-break:break-word; font:12px/1.5 ui-monospace,monospace }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:5px 14px; font-size:13px }
+  .kv dt { color:var(--dim) }
+  .kv dd { margin:0; font-family:ui-monospace,monospace }
+  table { width:100%; border-collapse:collapse; font-size:12.5px }
+  th,td { text-align:left; padding:6px 9px; border-bottom:1px solid var(--line); vertical-align:top }
+  th { color:var(--dim); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.05em }
+  td.num { font-family:ui-monospace,monospace; text-align:right }
+  .passage { color:var(--dim); font-size:12px; max-width:52ch }
+  .pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px;
+          border:1px solid var(--line) }
+  .pill.ok { color:var(--ok); border-color:#1e4635 } .pill.bad { color:var(--bad); border-color:#4a2222 }
+  .rejected { border-color:#4a2222; background:#1a1113 }
+  .rejected h3 { color:var(--bad) }
+  .empty { color:var(--dim); padding:36px 0; text-align:center }
+</style>
+
+<header>
+  <h1>Natural-language agent over legacy MLS data</h1>
+  <p>Not a chat. A fixed question bank, and a panel showing exactly what happened —
+     which tool was chosen, the SQL the database received, the passages retrieved with
+     their citations. The free-form box exists to be refused.</p>
+</header>
+
+<div class="wrap">
+  <div class="left" id="left"></div>
+  <div class="right" id="right"><div class="empty">Pick a question.</div></div>
+</div>
+
+<script>
+const left = document.getElementById('left'), right = document.getElementById('right');
+const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const money = n => n == null ? '' : Number(n).toLocaleString('en-US');
+
+let bank = [];
+fetch('/api/questions').then(r => r.json()).then(d => { bank = d.questions; render(d.brokerage); });
+
+function render(brokerage) {
+  const cats = [...new Set(bank.map(q => q.category))];
+  left.innerHTML = cats.map(c => `<h2>${esc(c)}</h2>` + bank.filter(q => q.category === c).map(q =>
+    `<button class="q" data-id="${q.id}">${esc(q.question)}
+       <span class="blurb">${esc(q.blurb)}</span></button>`).join('')).join('')
+    + `<h2>Free form — guardrail test</h2>
+       <form id="ff"><input id="ffq" placeholder="Ask anything. Watch it get refused."
+         autocomplete="off"><button>Ask</button></form>
+       <p class="note">The model may pick a vetted tool and fill typed arguments. It cannot
+         write SQL, invent a tool, or name a brokerage — every choice is validated against the
+         published schema before the database is touched.</p>
+       <p class="note">Signed in as brokerage <code>${brokerage}</code>. Row-level security
+         scopes every query to it, server-side.</p>`;
+
+  left.querySelectorAll('button.q').forEach(b => b.onclick = () => {
+    left.querySelectorAll('button.q').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true');
+    ask(b.dataset.id);
+  });
+  document.getElementById('ff').onsubmit = e => {
+    e.preventDefault();
+    const q = document.getElementById('ffq').value.trim();
+    if (q) freeform(q);
+  };
+}
+
+const loading = () => right.innerHTML = '<div class="empty">Running…</div>';
+
+async function ask(id) {
+  loading();
+  const r = await fetch('/api/ask', {method:'POST', headers:{'Content-Type':'application/json'},
+                                     body: JSON.stringify({id})});
+  show(await r.json());
+}
+
+async function freeform(question) {
+  loading();
+  const r = await fetch('/api/freeform', {method:'POST', headers:{'Content-Type':'application/json'},
+                                          body: JSON.stringify({question})});
+  show(await r.json());
+}
+
+function show(d) {
+  if (d.rejected) {
+    right.innerHTML = `
+      <div class="card rejected">
+        <h3>Refused by the guardrails</h3>
+        <pre>${esc(d.rejected)}</pre>
+        ${d.why ? `<p class="note">${esc(d.why)}</p>` : ''}
+      </div>` + traceCard(d.trace);
+    return;
+  }
+  if (d.error) { right.innerHTML = `<div class="card rejected"><h3>${esc(d.error)}</h3>
+                                    <pre>${esc(d.detail)}</pre></div>`; return; }
+
+  const p = d.payload, meta = p.meta || {};
+  right.innerHTML = traceCard(d.trace, meta) + sqlCard(meta) + rowsCard(p) + notesCard(p);
+}
+
+function traceCard(t, meta) {
+  if (!t) return '';
+  const rows = [
+    ['tool selected', t.tool],
+    ['arguments', JSON.stringify(t.arguments)],
+    ['retrieval', meta?.retrieval],
+    ['brokerage (server-side)', t.brokerage],
+    ['rows returned', t.rows],
+    ['data as of', t.as_of],
+    ['elapsed', t.elapsed_ms != null ? t.elapsed_ms + ' ms' : null],
+    ['model choice time', t.model_ms != null ? t.model_ms + ' ms' : null],
+    ['limit capped to', t.limit_capped_to],
+  ].filter(([, v]) => v != null && v !== '');
+  return `<div class="card"><h3>Trace</h3><dl class="kv">${
+    rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    ${t.model_raw ? `<h3 style="margin-top:14px">What the model returned</h3>
+                     <pre>${esc(t.model_raw)}</pre>` : ''}</div>`;
+}
+
+function sqlCard(meta) {
+  if (!meta?.sql) return '';
+  return `<div class="card"><h3>SQL the database received</h3>
+            <pre>${esc(meta.sql)}</pre>
+            <p class="note">The model chose a tool, not a query. This SQL is ours.</p></div>`;
+}
+
+function rowsCard(p) {
+  if (!p.rows?.length) return '<div class="card"><h3>Results</h3><p class="note">No rows.</p></div>';
+  const cols = [...new Set(p.rows.flatMap(Object.keys))];
+  const head = cols.map(c => `<th>${esc(c.replace(/_/g, ' '))}</th>`).join('');
+  const body = p.rows.map(r => '<tr>' + cols.map(c => {
+    const v = r[c];
+    if (c === 'passage') return `<td class="passage">${esc(String(v ?? '').slice(0, 260))}…</td>`;
+    const num = typeof v === 'number';
+    return `<td class="${num ? 'num' : ''}">${esc(num ? money(v) : v)}</td>`;
+  }).join('') + '</tr>').join('');
+  return `<div class="card"><h3>Results — ${p.row_count} row(s)</h3>
+            <div style="overflow-x:auto"><table><thead><tr>${head}</tr></thead>
+            <tbody>${body}</tbody></table></div></div>`;
+}
+
+function notesCard(p) {
+  const notes = Object.entries(p).filter(([k]) => k.startsWith('_note'));
+  if (!notes.length) return '';
+  return `<div class="card"><h3>Told to the model</h3>${
+    notes.map(([, v]) => `<p class="note">${esc(v)}</p>`).join('')}</div>`;
+}
+</script>

@@ -12,3 +12,4 @@ cdk.context.json   # can contain the account id; this repo is public
 
 # Demo data — 2.2M rows, regenerable via `make data`
 demo/data/
+demo/.playwright-mcp/

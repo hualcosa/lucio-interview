@@ -1,4 +1,4 @@
-.PHONY: help install data dumps up down psql test lint fmt synth diff deploy destroy
+.PHONY: help install data dumps docs up down psql test lint fmt bench eval serve synth diff deploy destroy
 .DEFAULT_GOAL := help
 
 DB_URL ?= postgresql://mls:mls@localhost:5433/mls
@@ -51,3 +51,16 @@ deploy:  ## Deploy to AWS. Budget alarm goes up first; see infra/README.md
 
 destroy:  ## Tear everything down. Run this before any long idle period.
 	cd infra && npx cdk destroy --all
+
+bench:  ## Run the naive-vs-revised benchmark
+	uv run python -m mls_agent.benchmark
+
+eval:  ## Run the routing eval
+	uv run python -m mls_agent.eval_routing
+
+docs:  ## Generate and ingest HOA documents (calls Bedrock)
+	uv run python scripts/make_documents.py --limit 300
+	uv run python -m mls_agent.documents
+
+serve:  ## Run the demo UI on http://localhost:8000
+	uv run python -m mls_agent.demo_server
