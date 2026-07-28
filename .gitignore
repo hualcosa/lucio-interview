@@ -14,3 +14,4 @@ cdk.context.json   # can contain the account id; this repo is public
 demo/data/
 demo/.playwright-mcp/
 RESPONSE.pdf
+RESPONSE.html
