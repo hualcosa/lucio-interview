@@ -15,7 +15,7 @@ two weeks. Technical terms are explained where they first appear.
 ## 1.1 The situation
 
 A real-estate brokerage wants staff to ask questions of their own data in plain English —
-*"which three-bedroom condos under $500,000 have been sitting more than ninety days?"* — and
+*"which three-bedroom condos under \$500,000 have been sitting more than ninety days?"* — and
 to act on the answers.
 
 The data lives in an MLS. A **Multiple Listing Service** is the cooperative database US
@@ -116,17 +116,17 @@ records. Raw output is in `demo/results/benchmark.json`.
 
 | Records | Draft design | Revised design |
 |---:|---|---|
-| 10,000 | 61 ms · $0.03/query | 36 ms |
-| 100,000 | 610 ms · $0.30/query | 33 ms |
-| 500,000 | 2,784 ms · $1.50/query | 31 ms |
-| 1,000,000 | 5,483 ms · $3.00/query | 31 ms |
-| **2,221,849** | **11,991 ms · $6.67/query** | **33 ms** |
+| 10,000 | 61 ms · \$0.03/query | 36 ms |
+| 100,000 | 610 ms · \$0.30/query | 33 ms |
+| 500,000 | 2,784 ms · \$1.50/query | 31 ms |
+| 1,000,000 | 5,483 ms · \$3.00/query | 31 ms |
+| **2,221,849** | **11,991 ms · \$6.67/query** | **33 ms** |
 
 **Read the right-hand column first.** It does not move — 33 ms at ten thousand records and
 33 ms at two million, because an indexed lookup does not care how much data it is *not*
 looking at. The left-hand column grows in a straight line, because a full scan cares about
 nothing else. At the brief's 3 million records the draft extrapolates to roughly **16 seconds
-and $9 per question**, against a stated budget of "a few seconds" and a capped bill.
+and \$9 per question**, against a stated budget of "a few seconds" and a capped bill.
 
 **A correction from my own measurements.** I expected memory to be the wall: a multi-gigabyte
 file parsed into program objects expands several times over, and Lambda is capped at 10,240 MB
@@ -172,7 +172,7 @@ lives inside the client's own network.
 re-list its entire inventory every night. At 0.5–2% churn that is 15,000–60,000 records
 rather than 3 million.
 
-**Queries stop paying for the file.** *"Three-bed condos under $500,000 in these ZIP codes,
+**Queries stop paying for the file.** *"Three-bed condos under \$500,000 in these ZIP codes,
 listed more than 90 days"* becomes an indexed lookup returning in 20–100 ms, at 3 million
 rows or at 10 million.
 
@@ -192,8 +192,8 @@ prose it is genuinely powerful. The word doing the work is *prose*.
 **Why it fails here.** The draft embeds the whole dataset, but the dataset is not one kind of
 thing. Consider `{price: 450000, bedrooms: 3, city: "Austin", status: "active"}`. Those are
 exact facts. Converting them into a similarity score takes information that was *precise* and
-makes it *approximate*. Asked for listings under $500,000, a vector search will return a
-$530,000 property, because the two descriptions sit close together in meaning-space. It is
+makes it *approximate*. Asked for listings under \$500,000, a vector search will return a
+\$530,000 property, because the two descriptions sit close together in meaning-space. It is
 not broken; it is the wrong instrument. **For a compliance-sensitive client, an answer that is
 confidently and subtly wrong is worse than no answer**, because nobody catches it.
 
@@ -206,7 +206,7 @@ For prose that chain is right. For a table of facts the correct chain is:
 > natural-language interface → **the model chooses a pre-approved query and fills in its
 > parameters**
 
-The AI's job is to translate *"three-bed condos under $500k sitting over 90 days"* into a
+The AI's job is to translate *"three-bed condos under \$500k sitting over 90 days"* into a
 **function call** — `search_listings(bedrooms=3, max_price=500000, min_days_on_market=90)` —
 not into a vector. The error is not *using* embeddings. It is applying one instrument to two
 different kinds of data.
@@ -223,7 +223,7 @@ Both live in the same PostgreSQL database, which is what makes the third case wo
 
 ### The questions that need both halves
 
-A broker asks: *"Three-bed condos under $500,000 in Austin **that allow short-term
+A broker asks: *"Three-bed condos under \$500,000 in Austin **that allow short-term
 rentals**."* `three-bed`, `under $500,000`, `Austin`, `condo` are exact comparisons — SQL.
 But *"allows short-term rentals"* is buried in the building's rules, phrased by a lawyer, and
 never as a checkbox:
@@ -241,7 +241,7 @@ Two more of the same shape:
 - *"Which of my listings sitting over 90 days have disclosed foundation issues?"* — the
   structured half tells you which are stale; the documents tell you **why**.
 - *"Which active pre-1978 listings are missing a signed lead-paint disclosure?"* — a federal
-  requirement carrying civil and criminal penalties of up to $10,000 per violation, plus
+  requirement carrying civil and criminal penalties of up to \$10,000 per violation, plus
   treble damages [[9]](#refs). This one asks about a document that **is not there**, and
   similarity search has no concept of absence.
 
@@ -287,9 +287,9 @@ answer does not fit in the field.
 **What the draft does.** Every question regenerates embeddings for the entire dataset.
 
 **Why this fails.** 3 million records at roughly 150 words each is about 450 million words. At
-Titan Text Embeddings V2's price of $0.02 per million tokens [[3]](#refs) that is
-**approximately $9 for a single question** — and that is the conservative reading, since
-English runs about 1.3 tokens per word, putting the true figure nearer $12. Ten questions would
+Titan Text Embeddings V2's price of \$0.02 per million tokens [[3]](#refs) that is
+**approximately \$9 for a single question** — and that is the conservative reading, since
+English runs about 1.3 tokens per word, putting the true figure nearer \$12. Ten questions would
 exhaust a month of most small-business budgets, and the processing time would be measured in
 hours.
 
@@ -315,11 +315,11 @@ someone asks about it.**
 
 | | Draft | Revised |
 |---|---|---|
-| First load | — | **~$3, once** |
+| First load | — | **~\$3, once** |
 | Each night after | — | **cents** (only changed documents) |
-| **Per user question** | **~$9** | **~$0.000004** |
+| **Per user question** | **~\$9** | **~\$0.000004** |
 
-The $9 does not become $2 through better engineering. It becomes effectively zero, because
+The \$9 does not become \$2 through better engineering. It becomes effectively zero, because
 the work was never supposed to happen at query time.
 
 ---
@@ -554,8 +554,8 @@ gateway anywhere — there is no internet path to misconfigure.
 Some Bedrock models cannot be invoked on demand by their base identifier and require an
 **inference profile**. The available profiles are *cross-Region*: they route to whichever
 Region has capacity, which buys real availability headroom and, for the `global.` profile, is
-about 10% cheaper than the US-scoped one — Nova 2 Lite is $0.30/$2.50 per million tokens
-globally against $0.33/$2.75 on the US profile [[3]](#refs).
+about 10% cheaper than the US-scoped one — Nova 2 Lite is \$0.30/\$2.50 per million tokens
+globally against \$0.33/\$2.75 on the US profile [[3]](#refs).
 
 Those are genuine benefits, and I would take them — except the brief says raw records must not
 leave the client's account **or region**. Cross-Region inference moves the prompt, and the
@@ -587,7 +587,7 @@ because it is the shortcut somebody proposes in the third meeting.
 |---|---|---|
 | The file *is* the database | Nightly pipeline: land → compare → update | Restores the missing boundary |
 | Everything embedded, structured fields included | **Routed by data type.** Columns queried exactly; documents embedded | Precision where precision is required |
-| Re-embed the corpus per query | Embed each document **once, at ingest**; only the question at query time | ~$9/query → effectively zero |
+| Re-embed the corpus per query | Embed each document **once, at ingest**; only the question at query time | ~\$9/query → effectively zero |
 | No way to search document content | Chunked, embedded, citable — with hybrid filter-then-rank | Answers a class of question the columns cannot |
 | In-memory scan of the whole file | Indexed database queries | 40 s → 20–100 ms |
 | Authentication "later" | Identity → token → row-level security, day one | Authorisation is a data-layer property |
@@ -620,8 +620,8 @@ architecture*, not in a document somebody is supposed to read.
 - **Cached answers valid until the next nightly load.** Data changes once a day, so a 24-hour
   cache is not reckless here — it is *provably correct*. The constraint everyone reads as a
   limitation is the strongest cost lever in the design.
-- **No NAT Gateway.** A NAT Gateway is $0.045/hour — $32.85 a month before a byte of data
-  processing. Interface endpoints are $0.01/hour per endpoint per AZ [[2]](#refs), so this is
+- **No NAT Gateway.** A NAT Gateway is \$0.045/hour — \$32.85 a month before a byte of data
+  processing. Interface endpoints are \$0.01/hour per endpoint per AZ [[2]](#refs), so this is
   only a saving while the endpoint count stays low; across two AZs, four endpoints already cost
   more than the NAT Gateway they replaced. **The reason to do it anyway is structural, not
   financial:** with no NAT and no internet gateway there is no egress path at all, which is a
@@ -651,17 +651,17 @@ architecture*, not in a document somebody is supposed to read.
 
 | Component | Monthly | Basis |
 |---|---|---|
-| Aurora Serverless v2 (0.5–2 ACU) | ~$44–175 | $0.12/ACU-hour × 730 h |
-| Aurora storage and I/O | ~$2–5 | $0.10/GB-month |
-| S3 (nightly dumps plus retained history) | ~$2–5 | $0.023/GB-month |
-| Lambda (adapter, domain service, ingest) | ~$10–30 | $0.0000166667/GB-second |
-| VPC interface endpoints | ~$15–45 | $0.01/hour per endpoint per AZ |
-| NAT Gateway | **$0** | not deployed |
-| Embeddings — nightly, changed documents only | ~$1–5 | $0.02/1M tokens |
-| **Infrastructure floor** | **~$75–265** | |
+| Aurora Serverless v2 (0.5–2 ACU) | ~\$44–175 | \$0.12/ACU-hour × 730 h |
+| Aurora storage and I/O | ~\$2–5 | \$0.10/GB-month |
+| S3 (nightly dumps plus retained history) | ~\$2–5 | \$0.023/GB-month |
+| Lambda (adapter, domain service, ingest) | ~\$10–30 | \$0.0000166667/GB-second |
+| VPC interface endpoints | ~\$15–45 | \$0.01/hour per endpoint per AZ |
+| NAT Gateway | **\$0** | not deployed |
+| Embeddings — nightly, changed documents only | ~\$1–5 | \$0.02/1M tokens |
+| **Infrastructure floor** | **~\$75–265** | |
 | AI model inference | The dominant variable | scales with usage and model choice |
 
-Plus a one-time **~$3** to embed the existing document corpus. Per-unit prices are us-east-1,
+Plus a one-time **~\$3** to embed the existing document corpus. Per-unit prices are us-east-1,
 July 2026; sources in the appendix.
 
 **The VPC endpoint line is the one people forget**, and it is why the floor is not lower. It is
@@ -675,9 +675,9 @@ discovering in month two.
 | Indexed or hybrid database query over 3M rows | ~20–150 ms |
 | **AI model generating the reply** | **1–3 s** |
 
-**The comparison that matters:** the draft spends roughly **$9 per query on embeddings
+**The comparison that matters:** the draft spends roughly **\$9 per query on embeddings
 alone** — approximately the *monthly* infrastructure cost of the revised design, consumed by
-one question. Plus about **$200 a month** in Lambda time re-reading an unchanged file.
+one question. Plus about **\$200 a month** in Lambda time re-reading an unchanged file.
 
 **Where to optimise:** once the data layer is fixed, the model accounts for 80–90% of response
 time. Everything else is noise — worth knowing before anyone proposes a sprint making the
@@ -707,14 +707,6 @@ than in week three.
 While the relationship is fresh, ask for two things that cost the client nothing and save us
 weeks: **Parquet instead of CSV**, and an **`updated_at` column**. The second turns change
 detection from snapshot-diffing into a filter.
-
-**Day 1, in parallel — send the residency position for countersignature.** Not a meeting
-request and not an open question: the reading in Section 4.1, written down, asking for
-confirmation. Compliance teams answer a proposal far faster than a question, and this **does
-not block anything** — the architecture already satisfies the strict reading. One item does
-need an answer before models are chosen: whether "or region" means a specific Region or a
-jurisdiction. That determines whether cross-Region inference is available, which affects both
-availability and the bill.
 
 **Days 2–3 — authentication and schema together**, because they are one decision rather than
 two. Tenancy model, row-level security policy, how identity claims map to database
@@ -806,32 +798,32 @@ trust:
 | Kind | Example | How to treat it |
 |---|---|---|
 | **Measured** | The latency table in Section 3.2 | Reproducible — `demo/results/benchmark.json` |
-| **Published unit price × stated volume** | The $9-per-query embedding cost | Arithmetic; only the assumed volume is arguable |
+| **Published unit price × stated volume** | The \$9-per-query embedding cost | Arithmetic; only the assumed volume is arguable |
 | **Estimated** | "1,000 queries a day," "0.5–2% nightly churn" | Assumption 4. Stated so it can be replaced with the client's real figures |
 
 ## Derivations
 
 | Claim | Derivation |
 |---|---|
-| ~$9 per query to re-embed | 3M records × ~150 words = 450M words × $0.02/1M [3]. Conservative: at ~1.3 tokens/word the true figure is ~$12 |
-| ~$200/month re-reading the file | 10 GB × 40 s = 400 GB-s × $0.0000166667 [2] = $0.0067/invocation × 1,000/day × 30 |
-| Aurora ~$44–175/month | 0.5–2 ACU × $0.12/ACU-hour [1] × 730 hours |
-| NAT Gateway $32.85/month | $0.045/hour [2] × 730 hours, before data processing |
-| VPC endpoints ~$15–45/month | $0.01/hour per endpoint per AZ [2] × 730 × 2–6 endpoint-AZs |
+| ~\$9 per query to re-embed | 3M records × ~150 words = 450M words × \$0.02/1M [3]. Conservative: at ~1.3 tokens/word the true figure is ~\$12 |
+| ~\$200/month re-reading the file | 10 GB × 40 s = 400 GB-s × \$0.0000166667 [2] = \$0.0067/invocation × 1,000/day × 30 |
+| Aurora ~\$44–175/month | 0.5–2 ACU × \$0.12/ACU-hour [1] × 730 hours |
+| NAT Gateway \$32.85/month | \$0.045/hour [2] × 730 hours, before data processing |
+| VPC endpoints ~\$15–45/month | \$0.01/hour per endpoint per AZ [2] × 730 × 2–6 endpoint-AZs |
 | 3M → 5.4M → 9.7M records | 3M × 1.05^12 and 1.05^24 |
-| ~$0.000004 per question at query time | One ~200-token question × $0.02/1M [3] |
+| ~\$0.000004 per question at query time | One ~200-token question × \$0.02/1M [3] |
 
 ## References
 
-1. **Amazon Aurora pricing** — Aurora Serverless v2 at $0.12 per ACU-hour, storage at
-   $0.10/GB-month, us-east-1. <https://aws.amazon.com/rds/aurora/pricing/>
-2. **AWS Lambda and Amazon VPC pricing** — Lambda x86 at $0.0000166667/GB-second, memory
-   configurable to 10,240 MB, 900-second maximum timeout; NAT Gateway at $0.045/hour; interface
-   VPC endpoints at $0.01/hour per AZ. <https://aws.amazon.com/lambda/pricing/> ·
+1. **Amazon Aurora pricing** — Aurora Serverless v2 at \$0.12 per ACU-hour, storage at
+   \$0.10/GB-month, us-east-1. <https://aws.amazon.com/rds/aurora/pricing/>
+2. **AWS Lambda and Amazon VPC pricing** — Lambda x86 at \$0.0000166667/GB-second, memory
+   configurable to 10,240 MB, 900-second maximum timeout; NAT Gateway at \$0.045/hour; interface
+   VPC endpoints at \$0.01/hour per AZ. <https://aws.amazon.com/lambda/pricing/> ·
    <https://aws.amazon.com/vpc/pricing/> ·
    <https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html>
-3. **Amazon Bedrock pricing** — Titan Text Embeddings V2 at $0.00002 per 1,000 tokens; Nova 2
-   Lite at $0.30/$2.50 per million tokens on the global profile against $0.33/$2.75 on the US
+3. **Amazon Bedrock pricing** — Titan Text Embeddings V2 at \$0.00002 per 1,000 tokens; Nova 2
+   Lite at \$0.30/\$2.50 per million tokens on the global profile against \$0.33/\$2.75 on the US
    profile. The profile differential is not broken out on the AWS pricing page and was
    confirmed against third-party trackers; **treat it as indicative and verify at build time.**
    <https://aws.amazon.com/bedrock/pricing/> · <https://cloudprice.net/models/amazon-nova-2-lite>
@@ -854,7 +846,7 @@ trust:
    lookup values including `Call`, 65% adoption across participating organisations.
    <https://dd.reso.org/DD2.0/Property/PetsAllowed/>
 9. **Lead-Based Paint Disclosure Rule** (Title X §1018, 24 CFR Part 35 Subpart A) — disclosure
-   required for most housing built before 1978; penalties up to $10,000 civil and $10,000
+   required for most housing built before 1978; penalties up to \$10,000 civil and \$10,000
    criminal per violation, plus treble damages.
    <https://www.epa.gov/lead/lead-based-paint-disclosure-rule-section-1018-title-x>
 10. **MLS count** — 489 multiple listing services in the US as of 2026, down from roughly twice
