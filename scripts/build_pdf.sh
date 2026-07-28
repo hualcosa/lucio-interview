@@ -64,7 +64,10 @@ cat > "$WORK/style.css" <<'CSS'
 body { font-family: Georgia, serif; line-height: 1.45; }
 img { width: 100%; height: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
-th, td { padding: 4px 8px; }
+/* pandoc centres header cells and left-aligns body cells, so the two do not
+   line up. Left-align both and rule the header instead. */
+th, td { padding: 5px 8px; text-align: left; vertical-align: top; }
+th { border-bottom: 1px solid #999; }
 CSS
 
 pandoc "$WORK/body.md" \
