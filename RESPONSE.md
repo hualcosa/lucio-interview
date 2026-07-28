@@ -631,45 +631,6 @@ double-check.
 
 ---
 
-## 3.8 Problem 7 — The residency rule is violated where nobody is looking
-
-**This one is also not in the brief, and it is the finding I would most want the compliance
-team to see.**
-
-The requirement is that raw records never leave the client's AWS account. Every version of
-this architecture — the draft's and mine — satisfies that *on the server*.
-
-But consider what actually happens when a question is asked.
-
-**The MCP server never calls an AI model. The client does.** The MCP server's job is to
-answer tool calls with data. It is the *agent application* — the thing the user talks to —
-that sends those records into a language model to compose a reply.
-
-Which means **the records leave the account at the client boundary, not the server
-boundary.** A perfectly designed server, fronted by a desktop AI application running on an
-agent's laptop and calling a third-party model, violates the residency requirement completely
-— and every architecture diagram of the server would still look immaculate.
-
-```mermaid
-flowchart LR
-  subgraph acct["Client AWS account — compliant"]
-    DB[("Database")] --> MCP["MCP server"]
-  end
-  MCP -->|"records"| CL["Agent client"]
-  CL -->|"records in the prompt"| EXT["Third-party AI model<br/>OUTSIDE the account"]
-
-  style EXT fill:#5b1a1a,stroke:#c0392b,color:#fff
-  style acct fill:#0f2f1a,stroke:#27ae60
-```
-
-**The fix:** the agent client must also run inside the account, against a model hosted there —
-Amazon Bedrock reached over a private network endpoint. Bedrock is AWS-managed and runs
-in-region, so the network path is solvable; but whether that satisfies "never leaves our
-account" is a **compliance judgment, not an engineering one.** I would get it answered in
-writing in week one, because the answer changes which models are available.
-
----
-
 # 4. The revised architecture
 
 ## 4.1 The whole picture
@@ -704,6 +665,21 @@ flowchart TB
   style S3 fill:#1a3a5b,stroke:#2980b9,color:#fff
   style aws fill:#0f2f1a,stroke:#27ae60
 ```
+
+**Everything sits inside one box, and that is the residency requirement satisfied.** Records
+move from the database to the MCP server to the agent client to Bedrock and back — all within
+the client's own account and region, over private network endpoints, never touching the
+public internet. What reaches the user's browser is the *answer*, not the underlying records.
+
+That has one consequence worth stating plainly, because it closes off a path somebody will
+propose:
+
+> **The obvious way to use an MCP server is ruled out here.** MCP's commercial appeal is that
+> a desktop AI application can connect to it in a few clicks. But the desktop application is
+> the thing that puts records into a prompt, and it sends that prompt to whichever model it is
+> configured for. Records would leave the account at that moment, and the server-side diagram
+> would still look perfect. **The agent client has to run in-account too** — which is why it
+> appears inside the box above rather than outside it.
 
 ## 4.2 What stays and what changes, at a glance
 
@@ -829,8 +805,9 @@ answerable within days. I would answer them first.
 **Day 1 — the compliance ruling.** Does "never leaves our account" permit Amazon Bedrock —
 AWS-managed and in-region, but outside the client's own network boundary? A private endpoint
 solves the network path; whether that satisfies the policy is a legal judgment. I want it in
-writing, because it determines which models are available. In the same conversation: the
-client-side boundary from Section 3.8, which they will not have considered.
+writing, because it determines which models are available. It is the one residency question
+that cannot be designed around — where the agent client runs is our choice, whether Bedrock
+counts as "inside" is theirs.
 
 **Days 1–2 — get a real export file.** Not a specification of one: the actual file. Profile
 it. What is its true size, its real schema, does it contain descriptive text, and how much
@@ -897,9 +874,10 @@ exactly, documents searched semantically, both in one database so a single quest
 both. That is the recommendation I would defend hardest, and Section 3.3 sets out the rule
 and the reasoning behind it.
 
-Two further findings were not in the original list. The system as specified **cannot act on
-anything**, though the brief asks for action. And the residency requirement is **violated on
-the client side**, invisibly, in every diagram that only draws the server.
+One further finding was not in the original list, and it is a plain omission rather than a
+mistake: the system as specified **cannot act on anything**, though the brief asks for
+action. Read-only batch in, read-only answers out. That needs a path, and it needs a human
+at the end of it.
 
 What I would want a reader to take from this is not a list of corrections. It is a way of
 deciding:
