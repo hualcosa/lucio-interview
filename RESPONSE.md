@@ -506,57 +506,94 @@ retrofit.
 
 ## 3.6 Problem 5 — The MCP server and the business logic share one function
 
-**I grade this one lower than the others, deliberately.** It is a real concern, but it is a
-judgment call rather than a defect, and I think an honest review should say which is which.
+### First, what "business logic" actually means here
 
-### Why the obvious argument is not good enough
+The phrase is vague enough to argue past, so let me be concrete. In this system there are two
+genuinely different kinds of code.
 
-The reflexive justification is "separation of concerns." That invites a fair objection, and
-one I would agree with:
+**The protocol layer** knows about MCP: the JSON schemas that describe each tool, the
+request/response framing, how a result is wrapped for return, how an error becomes a protocol
+error. It knows nothing about real estate.
 
-> *You have a small team building a first version. You want two services, a network hop
-> between them, two sets of permissions and two deployment pipelines — to get a boundary that
-> a module import already gives you?*
+**The business logic** is the policy. Which questions may be asked at all. What counts as a
+valid price range or status. That a result set is capped at 200 rows and a query at five
+seconds. That flagging a listing produces `pending_approval` and never `done`. That every
+response carries an `as_of` timestamp. And most importantly: **that the tenancy filter is
+derived from the verified identity and can never arrive as an argument.**
 
-Splitting a system into services on principle, before anything forces it, is exactly the
-over-engineering this review argues against elsewhere. Being inconsistent about that would
-undermine the rest of the document.
+That second list is the client's actual rules. It is what a reviewer would audit, what
+compliance would sign, and what would need to survive an MCP version upgrade untouched.
 
-### What the real problem is
+### There are two boundaries here, and they do different jobs
 
-**The flaw is that there is no boundary at all — not that both things run in one place.**
+The draft is missing both, and they are not substitutes for each other. This distinction is
+the point of this section.
 
-Three things genuinely justify separating them here:
+**The code boundary — separation of concerns.** This one is necessary, not stylistic. With
+the two layers fused, the business rules can only be reached by speaking MCP. There is no way
+to call `search_listings` from a scheduled report, a web dashboard, or a second agent. There
+is no way to test the rules without standing up a protocol session. And every MCP
+revision — the specification has shipped several significant ones inside a year — forces
+re-testing of business rules that did not change.
 
-**Everything is locked behind MCP.** With no internal boundary, the query and action logic
-can only be reached by speaking the MCP protocol. No web dashboard, no scheduled report, no
-second agent, and no way to test the business rules without standing up a protocol session.
-In a real brokerage there will be a dashboard within six months, and it will need the same
-`search_listings` logic that already exists.
+The practical test is one sentence: *can a nightly report ask this system a question without
+speaking MCP?* In the draft, no. In a real brokerage there will be a dashboard within six
+months, and it will need exactly the logic that already exists.
 
-**Blast radius.** Code that parses untrusted input from the network sits in the same
-execution environment, with the same database permissions, as the code that reads client
-data. Separated, the protocol adapter holds no data permissions of its own — it verifies who
-is calling and forwards the request. This composes directly with the authentication fix
-above.
+**The privilege boundary — and this is the one no amount of clean code can give you.**
 
-**The protocol is still moving.** MCP has shipped several significant revisions to its
-transport and authorisation model within a year. Fusing business logic to a specification
-that is still changing means every protocol update forces re-testing of business rules that
-did not change.
+> **A Lambda function has exactly one execution role.**
 
-### The fix
+If the protocol handler and the data access run in the same function, they **share the
+database credentials**. There is no arrangement of modules, interfaces or dependency
+injection that changes this. A module boundary is not a privilege boundary.
 
-A firm **internal boundary from day one**: the domain logic is an independently callable,
-independently testable layer with its own typed interface and no knowledge that MCP exists.
+Which means: the code that parses untrusted input arriving from the network holds the same
+permissions as the code that reads three million confidential records. A deserialisation bug
+in the protocol layer is not a protocol bug — it is database access.
 
-Whether it deploys as a separate process is a *topology* decision, driven by the security
-boundary and the number of consumers — not by principle. I would begin with both behind that
-interface and separate them when the second consumer or the compliance review arrives. From a
-proper boundary, that separation is a configuration change rather than a rewrite.
+### Why this defeats the objection I would otherwise expect
 
-This is the distinction I would want to be judged on: **a code boundary and a deployment
-boundary are different things, and only one of them is free.**
+The reflexive case for splitting services is "separation of concerns," and it usually invites
+a fair rebuttal:
+
+> *You have a small team building a first version. You want two functions, a network hop, two
+> sets of permissions and two deployment pipelines — for a boundary a module import already
+> gives you?*
+
+That rebuttal is right about the *code* boundary and wrong about the *privilege* one.
+Splitting on principle would be the over-engineering this review argues against elsewhere.
+Splitting because **IAM roles are granted per function** is not a principle — it is the only
+mechanism AWS offers.
+
+Two smaller consequences follow from the same runtime fusion. **Concurrency profile:**
+protocol handling is fast and cheap, an analytical query is neither; one function means one
+timeout, one memory allocation and one concurrency pool, sized for the worst case and paid
+for on every call. **Deployment coupling:** a protocol upgrade redeploys the data layer.
+
+### The fix — both boundaries, from day one
+
+**In code:** the domain layer is independently callable and independently testable, with its
+own typed interface and no knowledge that MCP exists. In the working implementation
+accompanying this review, a test parses the source and fails the build if the domain module
+imports anything protocol-related — because a layering claim nobody checks is one that quietly
+erodes.
+
+**In deployment:** two functions with two execution roles.
+
+- The **MCP adapter** validates the caller's token and forwards the request. Its role has
+  **no database permission at all**.
+- The **domain service** holds the database and model credentials, reached over private
+  network endpoints.
+
+An exploit in the protocol layer then yields an attacker a function that can call another
+function — not a database connection. That composes directly with the authorisation fix in
+Section 3.5: identity is verified at the edge, carried inward, and enforced at the bottom by
+row-level security.
+
+The distinction I would want to be judged on is this: **a code boundary buys reuse and
+testability, and it is nearly free. A runtime boundary buys least privilege, and it is the
+only way to buy it.** The draft has neither, and the second is the one that matters at 2 a.m.
 
 ---
 
