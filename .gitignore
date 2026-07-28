@@ -17,3 +17,9 @@ RESPONSE.pdf
 RESPONSE.html
 PRESENTATION.pptx
 .playwright-mcp/
+
+# Internal working files — not part of the deliverable
+PRESENTATION.md
+context.md
+email.md
+plan.md

@@ -15,11 +15,8 @@ Everything else here exists to support a claim it makes.
 | | |
 |---|---|
 | **[`RESPONSE.md`](RESPONSE.md)** | The review. Assumptions, what the draft gets right, six problems with what replaces each, the revised architecture with costs and safeguards, and a two-week plan. Builds to a 16-page PDF. |
-| **[`PRESENTATION.md`](PRESENTATION.md)** | Narration script and timing for the accompanying five-minute recording. |
 | **[`demo/`](demo/)** | The architecture, built and measured. See [`demo/README.md`](demo/README.md). |
 | **[`demo/results/`](demo/results/)** | Committed measurements — the benchmark and the routing evaluation, with the method beside them. |
-| [`email.md`](email.md) | The original brief, kept verbatim so the review can be read against what was asked. |
-| [`context.md`](context.md), [`plan.md`](plan.md) | Working notes. Reasoning that did not survive into the review, and the task breakdown. Not part of the deliverable. |
 | [`assets/`](assets/), [`scripts/`](scripts/) | The architecture diagram, and the build scripts for the PDF and the deck. |
 
 ## The argument in one paragraph
