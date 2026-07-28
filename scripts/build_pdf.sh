@@ -42,6 +42,16 @@ def render(match):
          "-b", "white", "-w", "1400"],
         check=True, capture_output=True,
     )
+    # mermaid-cli pins the SVG to its natural pixel size, which wkhtmltopdf
+    # honours — the diagram lands a third of the text width and is unreadable.
+    # Rewrite the root attributes (not add to them: a duplicate width attribute
+    # is a parse error and the image silently fails to load) so it scales to
+    # the column, and drop the inline max-width that would otherwise cap it.
+    s = svg.read_text()
+    s = re.sub(r"max-width:\s*[\d.]+px;?", "", s)
+    s = re.sub(r'\s(width|height)="[^"]*"', "", s, count=2)
+    s = s.replace("<svg ", '<svg width="100%" ', 1)
+    svg.write_text(s)
     return f"\n![]({svg})\n"
 
 text = re.sub(r"```mermaid\n(.*?)```", render, text, flags=re.S)
@@ -50,8 +60,16 @@ text = text.replace(r"\$", "$")          # unescape for pandoc
 print(f"rendered {count} diagrams")
 PY
 
+cat > "$WORK/style.css" <<'CSS'
+body { font-family: Georgia, serif; line-height: 1.45; }
+img { width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
+th, td { padding: 4px 8px; }
+CSS
+
 pandoc "$WORK/body.md" \
   -o "$OUT" \
+  --css="$WORK/style.css" \
   --pdf-engine=wkhtmltopdf \
   --pdf-engine-opt=--enable-local-file-access \
   --pdf-engine-opt=--margin-top   --pdf-engine-opt=18mm \
