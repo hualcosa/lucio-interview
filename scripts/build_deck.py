@@ -451,19 +451,25 @@ choose whose data to ask about.
     s = slide_base(deck, number=8, eyebrow="Measured")
     y = headline(s, "Both designs built and measured on 2.2M real records", size=32)
     y = table(s, y, [
-        ["Records", "Draft design", "Revised"],
+        ["Records", "Draft — data layer", "Revised — data layer"],
         ["100,000", "610 ms  ·  $0.30 / query", "33 ms"],
         ["1,000,000", "5,483 ms  ·  $3.00 / query", "31 ms"],
         ["2,221,849", "11,991 ms  ·  $6.67 / query", "33 ms"],
     ], [Inches(2.6), Inches(5.4), Inches(3.53)], size=16, height=Inches(0.52))
-    callout(s, y + Inches(0.3),
-            "The right-hand column does not move. An indexed lookup does not care how much\n"
-            "data it is not looking at. At the brief's 3M records the draft extrapolates to\n"
-            "roughly 16 seconds and $9 a question — about the revised design's entire monthly\n"
-            "infrastructure floor of ~$75–265, spent on one question.", size=15, height=Inches(1.5))
+    # Naming the boundary turns the obvious sceptical question — "33 ms is not
+    # what the user experiences" — into a point already anticipated.
+    y = callout(s, y + Inches(0.26),
+                "The right-hand column does not move. An indexed lookup does not care how much data\n"
+                "it is not looking at. At 3M records the draft extrapolates to roughly 16 seconds and\n"
+                "$9 a question — the revised design's entire monthly floor, spent on one question.",
+                size=15, height=Inches(1.15))
+    frame = textbox(s, MARGIN, y + Inches(0.3), COL, Inches(0.5))
+    write(frame, "Retrieval only — the model adds 1–3 s to both. Which is the point: the database "
+                 "is no longer what you wait for.", size=14, color=MUTED, spacing=1.3, first=True)
     notes(s, 33, """
 I didn't want to assert any of this, so I built both designs and measured them on two
-point two million real records.
+point two million real records. This is retrieval time — the model adds one to three
+seconds to both, so leaving it in would only hide the difference.
 
 The revised column doesn't move — thirty-three milliseconds at ten thousand records and
 thirty-three at two million. At three million the draft extrapolates to sixteen seconds
