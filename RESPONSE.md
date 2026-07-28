@@ -16,7 +16,7 @@ Section 3 takes each problem in turn — what the draft does, why it fails, and 
 Section 4 assembles the pieces into one architecture with its
 costs and safeguards. 
 
-Section 5 covers delivery. 
+Section 5 sets out the first two weeks. 
 
 Section 6 concludes.
 
@@ -806,38 +806,24 @@ Plus a **one-time ~$3** to embed the existing document corpus. Once.
 | Indexed or hybrid database query over 3M rows | ~20–150 ms |
 | **AI model generating the reply** | **1–3 s** |
 
-**The comparison that matters:** the draft spends roughly **$9 per query on embeddings
+**The comparison that matters:** the draft spends roughly **\$9 per query on embeddings
 alone** — approximately the *monthly* infrastructure cost of the revised design, consumed by
 a single question. Plus about **$210 a month** re-reading an unchanged file.
 
 **And a note on where to optimise:** once the data layer is fixed, the AI model accounts for
-80–90% of response time. Everything else is noise. That is worth knowing before anyone
-proposes spending a sprint making the database faster.
+80–90% of response time. Everything else is noise. That is worth knowing before anyone proposes spending a sprint making the database faster.
 
-*All figures are order-of-magnitude estimates, to be re-verified for the deployment region at
-the time of build.*
+*All figures are order-of-magnitude estimates, to be re-verified for the deployment region at the time of build.*
 
 ---
 
-# 5. Delivery
-
-## 5.1 Prior MCP integration
-
-> **[TO BE COMPLETED — this section is the author's own professional experience and has
-> deliberately not been drafted for them.]**
->
-> Name one real integration: what system it fronted, what the tools exposed, who consumed it,
-> and one thing that proved harder than expected. If it was not literally MCP — an agent
-> wired into an internal system, tool-calling over a legacy API, a function-calling layer over
-> a database — say so plainly and describe the equivalence. Specifics beat protocol purity.
-
-## 5.2 How I would structure the first two weeks
+# 5. How I would structure the first two weeks
 
 The plan is organised around **eliminating the unknowns that could invalidate this
 architecture**, not around shipping features. Two things could force a redesign, and both are
 answerable within days. I would answer them first.
 
-### Week one — remove the ambiguity, prove one path end to end
+## Week one — remove the ambiguity, prove one path end to end
 
 **Day 1 — get the residency reading confirmed in writing.** Not as an open question: I would
 arrive with the position set out in Section 4.1 — PrivateLink, in-Region, no public internet,
@@ -863,7 +849,7 @@ identity, real database. Not a mock.
 
 *Exit criterion: a compliance officer can look at it and say yes or no.*
 
-### Week two — correctness, the ability to act, and cost visibility
+## Week two — correctness, the ability to act, and cost visibility
 
 **Days 6–7 — a golden question set.** Roughly 25 real questions from actual brokerage staff,
 with known-correct answers. This becomes the regression suite, and it converts arguments
