@@ -36,7 +36,12 @@ REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 EMBED_MODEL = "amazon.titan-embed-text-v2:0"
 EMBED_DIMS = 256  # Matryoshka: Titan V2 supports 256/512/1024. Smaller index, same recall.
-TEXT_MODEL = "global.amazon.nova-2-lite-v1:0"  # not `us.` — see above
+# ⚠ `global.` is a CROSS-REGION inference profile: it routes to whichever Region
+# has capacity. Fine for this demo, and 10% cheaper than `us.`, but it would
+# break a regional residency requirement silently — no error, no log line. A
+# residency-constrained deployment must pin to a single Region, using provisioned
+# throughput where on-demand is unavailable. See RESPONSE.md 4.1.
+TEXT_MODEL = "global.amazon.nova-2-lite-v1:0"
 
 # us-east-1, verified July 2026. Re-check before quoting these anywhere.
 EMBED_USD_PER_1M_TOKENS = 0.02

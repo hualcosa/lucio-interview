@@ -671,15 +671,52 @@ move from the database to the MCP server to the agent client to Bedrock and back
 the client's own account and region, over private network endpoints, never touching the
 public internet. What reaches the user's browser is the *answer*, not the underlying records.
 
-That has one consequence worth stating plainly, because it closes off a path somebody will
-propose:
+### Why Bedrock satisfies "never leaves the account"
 
-> **The obvious way to use an MCP server is ruled out here.** MCP's commercial appeal is that
-> a desktop AI application can connect to it in a few clicks. But the desktop application is
-> the thing that puts records into a prompt, and it sends that prompt to whichever model it is
-> configured for. Records would leave the account at that moment, and the server-side diagram
-> would still look perfect. **The agent client has to run in-account too** — which is why it
-> appears inside the box above rather than outside it.
+This is the question compliance will ask, so here is the position rather than a shrug.
+
+Reached over an **interface VPC endpoint (AWS PrivateLink)**, calls to Bedrock leave the
+customer's VPC — they have to, since the models run in AWS-operated deployment accounts — but
+they do not leave the AWS network and do not leave the Region. AWS documents this directly:
+traffic never traverses the public internet, no internet gateway or NAT device is involved,
+and no public IP address is needed. AWS further states that Bedrock **does not store or log
+prompts and completions**, does not use them to train any model, and does not share them with
+model providers, who have no access to the deployment accounts at all.
+
+The decisive argument is one of consistency. **Amazon S3 is also an AWS-managed service
+outside the customer's VPC** — and the client's own requirement is that the nightly export
+lands there. Read literally enough to exclude Bedrock, the constraint would forbid the
+architecture the client already specified.
+
+So the workable reading, and the one I would put in front of compliance for confirmation, is:
+*data must not leave the AWS network, must not leave the Region, and must not reach a third
+party.* Bedrock over PrivateLink meets all three. Supporting controls: an endpoint policy
+restricting which models may be invoked, CloudTrail recording every invocation, encryption in
+transit and at rest, and no NAT gateway anywhere in the design — there is no internet path to
+misconfigure.
+
+> ⚠ **One configuration detail can silently undo all of this.** Some Bedrock models cannot be
+> invoked on demand by their base identifier and require an *inference profile*. The
+> convenient profiles — those prefixed `us.` or `global.` — are **cross-region**: they route
+> requests to whichever Region has capacity. That is a sensible default for availability and
+> it is 10% cheaper, and for a client with a regional residency requirement it breaks the
+> guarantee above without any error, log line or warning.
+>
+> For this client, model selection is therefore constrained to what can be invoked
+> **single-Region**, using provisioned throughput where on-demand is unavailable. That has a
+> real cost, and it belongs in the budget from the start rather than being discovered during
+> the compliance review.
+
+### One deployment path this rules out
+
+MCP's commercial appeal is that a desktop AI application can connect to a server in a few
+clicks. But the desktop application is the thing that assembles records into a prompt, and it
+sends that prompt to whichever model it happens to be configured for. Records would leave the
+account at that moment, and the server-side diagram would still look immaculate.
+
+**The agent client has to run in-account too** — which is why it appears inside the box above
+rather than outside it. Worth saying explicitly, because it is the shortcut somebody proposes
+in the third meeting.
 
 ## 4.2 What stays and what changes, at a glance
 
@@ -802,12 +839,15 @@ answerable within days. I would answer them first.
 
 ### Week one — remove the ambiguity, prove one path end to end
 
-**Day 1 — the compliance ruling.** Does "never leaves our account" permit Amazon Bedrock —
-AWS-managed and in-region, but outside the client's own network boundary? A private endpoint
-solves the network path; whether that satisfies the policy is a legal judgment. I want it in
-writing, because it determines which models are available. It is the one residency question
-that cannot be designed around — where the agent client runs is our choice, whether Bedrock
-counts as "inside" is theirs.
+**Day 1 — get the residency reading confirmed in writing.** Not as an open question: I would
+arrive with the position set out in Section 4.1 — PrivateLink, in-Region, no public internet,
+nothing stored or used for training, and the observation that S3 is an AWS-managed service on
+exactly the same footing. Compliance teams answer a proposal faster than they answer a
+question.
+
+Two things must come out of that meeting: confirmation of the reading, and agreement that
+**cross-Region inference profiles are prohibited**, because that constraint narrows the model
+options and therefore the budget. Both are cheaper to settle on day one than in month three.
 
 **Days 1–2 — get a real export file.** Not a specification of one: the actual file. Profile
 it. What is its true size, its real schema, does it contain descriptive text, and how much
