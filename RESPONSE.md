@@ -695,17 +695,32 @@ restricting which models may be invoked, CloudTrail recording every invocation, 
 transit and at rest, and no NAT gateway anywhere in the design — there is no internet path to
 misconfigure.
 
-> ⚠ **One configuration detail can silently undo all of this.** Some Bedrock models cannot be
-> invoked on demand by their base identifier and require an *inference profile*. The
-> convenient profiles — those prefixed `us.` or `global.` — are **cross-region**: they route
-> requests to whichever Region has capacity. That is a sensible default for availability and
-> it is 10% cheaper, and for a client with a regional residency requirement it breaks the
-> guarantee above without any error, log line or warning.
->
-> For this client, model selection is therefore constrained to what can be invoked
-> **single-Region**, using provisioned throughput where on-demand is unavailable. That has a
-> real cost, and it belongs in the budget from the start rather than being discovered during
-> the compliance review.
+### One configuration choice that has to be made deliberately
+
+Some Bedrock models cannot be invoked on demand by their base identifier and require an
+**inference profile**. The available profiles are *cross-Region*: they route a request to
+whichever Region has capacity, which buys real availability headroom during bursts and, for
+the `global.` profile, is about 10% cheaper than the US-scoped one.
+
+Those are genuine benefits, and I would take them — except the brief says raw records must
+not leave the client's account **or region**. Cross-Region inference moves the prompt, and
+the prompt contains the records. So this is not a matter of caution; the requirement as
+written rules it out.
+
+Three postures are available, and the choice should be made on purpose rather than inherited
+from whichever model identifier someone copied first:
+
+| Posture | What it means | Trade-off |
+|---|---|---|
+| **Single-Region** *(recommended — matches the brief as written)* | No cross-Region profile. Provisioned throughput where on-demand is unavailable. | Loses burst headroom; provisioned capacity is a fixed monthly line item. |
+| **Geography-scoped** (`us.` profiles) | Requests may move between US Regions but never leave the US. | Viable **if** compliance reads "region" as jurisdiction rather than a specific Region. Regains availability; 10% dearer than global. |
+| **Global** (`global.` profiles) | Requests route anywhere with capacity. | Cheapest and most available. Outside the brief's wording. |
+
+**I would build for single-Region and put the middle row on the agenda.** In my experience
+"or region" in a compliance document usually means jurisdiction, and if that is confirmed the
+availability win is worth having. But that is a clarification to obtain, not an assumption to
+make — and the difference is a fixed monthly cost, so it belongs in the budget conversation
+early.
 
 ### One deployment path this rules out
 
@@ -825,27 +840,37 @@ answerable within days. I would answer them first.
 
 ## Week one — remove the ambiguity, prove one path end to end
 
-**Day 1 — get the residency reading confirmed in writing.** Not as an open question: I would
-arrive with the position set out in Section 4.1 — PrivateLink, in-Region, no public internet,
-nothing stored or used for training, and the observation that S3 is an AWS-managed service on
-exactly the same footing. Compliance teams answer a proposal faster than they answer a
-question.
+**Day 1 — get a real export file.** Not a specification of one, not a schema document: the
+actual file from a real night. Then profile it. True size, real schema, does it carry
+descriptive text, are documents attached, and how much changes between two consecutive nights?
 
-Two things must come out of that meeting: confirmation of the reading, and agreement that
-**cross-Region inference profiles are prohibited**, because that constraint narrows the model
-options and therefore the budget. Both are cheaper to settle on day one than in month three.
+This is first because **it is the only thing that can invalidate the architecture.** Every
+recommendation above rests on Assumption 1, and one file settles it. If the export turns out
+to carry attached PDFs or two hundred RESO fields, several decisions change — and I would
+rather know on Monday than in week three.
 
-**Days 1–2 — get a real export file.** Not a specification of one: the actual file. Profile
-it. What is its true size, its real schema, does it contain descriptive text, and how much
-changes between two consecutive nights? **This single artifact confirms or destroys the
-central assumption of this document.** While the relationship is fresh, ask for Parquet and
-an `updated_at` column.
+While the relationship is fresh, ask for two things that cost the client nothing and save us
+weeks: **Parquet instead of CSV**, and an **`updated_at` column**. The second turns change
+detection from snapshot-diffing into a filter.
 
-**Days 2–3 — authentication and schema together**, because they are one decision, not two.
-Tenancy model, row-level security policy, how identity claims map to database permissions.
+**Day 1, in parallel — send the residency position for countersignature.** Not a meeting
+request and not an open question: the reading set out in Section 4.1, written down, asking
+for confirmation. Compliance teams answer a proposal far faster than they answer a question,
+and this **does not block anything** — the architecture is already built to satisfy the
+strict reading.
 
-**Days 3–5 — one authenticated slice, end to end.** One tool, one query, real data, real
-identity, real database. Not a mock.
+One item does need an answer before models are chosen: whether "or region" means a specific
+Region or a jurisdiction (Section 4.1). That determines whether cross-Region inference is
+available, which affects both availability and the monthly bill.
+
+**Days 2–3 — authentication and schema together**, because they are one decision rather than
+two. Tenancy model, row-level security policy, how identity claims map to database
+permissions. Getting this wrong is the expensive mistake; it is also the one that is cheap to
+get right before any code depends on it.
+
+**Days 3–5 — one authenticated slice, end to end.** One tool, one real question, real data,
+real identity, real database. Not a mock, and not a happy path — including the case where a
+user asks for something they are not entitled to see.
 
 *Exit criterion: a compliance officer can look at it and say yes or no.*
 
